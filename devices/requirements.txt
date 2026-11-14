@@ -1,0 +1,4 @@
+aiocoap
+flask
+paho-mqtt>=2
+gpiozero
