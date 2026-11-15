@@ -1,4 +1,4 @@
-# gateway (P1)
+# gateway
 
 node-wot gateway. Consumes each device TD through its native binding (MQTT, CoAP, HTTP)
 and exposes every Thing over HTTP on :8080 with the same names, registering each one in the

@@ -1,4 +1,4 @@
-# sim (P2)
+# sim
 
 `python3 sim.py N --broker PI_IP` starts N fake MQTT sensors (10, 25, 50, 100) and writes a
 TD for each to `tds/sim/` (not committed). Run it from a different machine than the gateway,

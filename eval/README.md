@@ -1,4 +1,4 @@
-# eval (P5)
+# eval
 
 Latency harness (direct vs through gateway), CPU/RAM logging and plots, all in `eval.py`.
 Raw timings go in `raw/` (not committed), plots in `plots/`.
@@ -8,4 +8,4 @@ Raw timings go in `raw/` (not committed), plots in `plots/`.
     python3 eval.py plot
 
 Run latency from a laptop (not the Pi) so the client doesn't steal Pi CPU. Not covered:
-direct MQTT latency (add it if the paper needs it).
+direct MQTT latency (not included).

@@ -1,4 +1,4 @@
-# devices (P3, plus P2's MQTT sensor and simulator)
+# devices
 
 Python 3. Install once:
 
@@ -11,7 +11,7 @@ Python 3. Install once:
 - `mqtt_relay.py` - same relay over MQTT topics
 - `http_plug.py` - fake smart plug (`/status`, `/on`, `/off`)
 - `common.py` - the GPIO relay class both relays use
-- `sim/` - P2's 10-100 device simulator
+- `sim/` - 10-100 device simulator
 - `run.sh` - starts one device
 
 Paths, topics and payloads are in the code and the generated TDs (`../tds/`).

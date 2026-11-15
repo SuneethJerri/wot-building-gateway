@@ -1,7 +1,7 @@
-# app (P4)
+# app
 
 The temperature to fan rule. Talks only to Thing Descriptions, finds Things through the
-Directory, no hard-coded addresses. Tag `app-frozen` before the swap test.
+Directory, no hard-coded addresses.
 
     python3 app.py --directory http://PI:9000 [--hi 28 --lo 26] [--notify-url https://ntfy.sh/topic]
 
