@@ -5,7 +5,7 @@ import time
 
 import paho.mqtt.client as mqtt
 
-# topics from CONTRACT.md: <base>/temp, /humidity (retained numbers), /overheat (event)
+# topics: <base>/temp, /humidity (retained numbers), /overheat (event)
 
 
 def main():

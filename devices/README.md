@@ -14,7 +14,7 @@ Python 3. Install once:
 - `sim/` - P2's 10-100 device simulator
 - `run.sh` - starts one device
 
-Paths, topics and payloads are in `../CONTRACT.md`.
+Paths, topics and payloads are in the code and the generated TDs (`../tds/`).
 
 ## Running
 
