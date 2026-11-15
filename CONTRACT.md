@@ -46,16 +46,19 @@ Port 8081: `GET /status`, `POST /on`, `POST /off`. The last two return the new s
 
 | Thing | Address |
 |-------|---------|
-| MQTT broker | TBD (Pi or laptop), port 1883 |
-| Gateway HTTP/WebSocket | TBD:8080 |
-| Thing Directory | TBD:9000 |
-| CoAP relay | TBD:5683 |
-| HTTP plug | TBD:8081 |
+| MQTT broker | Pi (mosquitto, `devices/mosquitto.conf`), port 1883 |
+| Gateway HTTP (events are long-poll, no WebSocket yet) | Pi:8080 |
+| Thing Directory | Pi:9000 (started by the gateway) |
+| CoAP relay | relay host:5683 |
+| HTTP plug | plug host:8081 |
 
 ## Who runs what during development
 
-TBD. Suggestion: Pi runs the gateway and Directory, devices run on laptops or an ESP32
-until Day 3.
+Pi runs the broker, gateway and Directory. Devices run on laptops or an ESP32 until the
+Pi is wired. Sim runs on a separate machine. Real addresses go into the TDs with `tds/gen.py`.
+
+Thing titles (what the app looks up in the Directory): `room1-sensor`, `room1-fan`, `room1-plug`.
+Both fan versions use the title `room1-fan`.
 
 ## Repo layout
 

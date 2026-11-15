@@ -2,3 +2,6 @@ aiocoap
 flask
 paho-mqtt>=2
 gpiozero
+adafruit-circuitpython-dht  # Pi only, for sensor.py without --mock
+psutil
+matplotlib

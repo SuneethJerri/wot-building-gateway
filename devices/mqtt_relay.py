@@ -26,7 +26,7 @@ def main():
         publish()
 
     def on_message(c, userdata, msg):
-        cmd = msg.payload.decode().strip().lower()
+        cmd = msg.payload.decode().strip().strip('"').lower()  # node-wot may send "on" json-quoted
         if cmd in ("on", "off"):
             relay.set(cmd == "on")
             publish()

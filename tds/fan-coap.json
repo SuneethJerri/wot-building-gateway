@@ -1,0 +1,49 @@
+{
+  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "id": "urn:dev:room1-fan-coap",
+  "title": "room1-fan",
+  "securityDefinitions": {
+    "nosec": {
+      "scheme": "nosec"
+    }
+  },
+  "security": "nosec",
+  "properties": {
+    "status": {
+      "type": "object",
+      "properties": {
+        "on": {
+          "type": "boolean"
+        }
+      },
+      "readOnly": true,
+      "forms": [
+        {
+          "href": "coap://localhost:5683/status",
+          "op": "readproperty",
+          "contentType": "application/json"
+        }
+      ]
+    }
+  },
+  "actions": {
+    "switchOn": {
+      "forms": [
+        {
+          "href": "coap://localhost:5683/on",
+          "op": "invokeaction",
+          "cov:method": "PUT"
+        }
+      ]
+    },
+    "switchOff": {
+      "forms": [
+        {
+          "href": "coap://localhost:5683/off",
+          "op": "invokeaction",
+          "cov:method": "PUT"
+        }
+      ]
+    }
+  }
+}

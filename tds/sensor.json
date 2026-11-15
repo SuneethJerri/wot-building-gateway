@@ -1,0 +1,57 @@
+{
+  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "id": "urn:dev:room1-sensor",
+  "title": "room1-sensor",
+  "securityDefinitions": {
+    "nosec": {
+      "scheme": "nosec"
+    }
+  },
+  "security": "nosec",
+  "properties": {
+    "temperature": {
+      "type": "number",
+      "unit": "degC",
+      "readOnly": true,
+      "observable": true,
+      "forms": [
+        {
+          "href": "mqtt://localhost:1883/building/room1/temp",
+          "op": [
+            "readproperty",
+            "observeproperty"
+          ]
+        }
+      ]
+    },
+    "humidity": {
+      "type": "number",
+      "unit": "%",
+      "readOnly": true,
+      "observable": true,
+      "forms": [
+        {
+          "href": "mqtt://localhost:1883/building/room1/humidity",
+          "op": [
+            "readproperty",
+            "observeproperty"
+          ]
+        }
+      ]
+    }
+  },
+  "events": {
+    "overheat": {
+      "data": {
+        "type": "number",
+        "unit": "degC"
+      },
+      "forms": [
+        {
+          "href": "mqtt://localhost:1883/building/room1/overheat",
+          "op": "subscribeevent"
+        }
+      ]
+    }
+  }
+}

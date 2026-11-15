@@ -1,0 +1,76 @@
+{
+  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "id": "urn:dev:room1-plug",
+  "title": "room1-plug",
+  "securityDefinitions": {
+    "nosec": {
+      "scheme": "nosec"
+    }
+  },
+  "security": "nosec",
+  "properties": {
+    "status": {
+      "type": "object",
+      "properties": {
+        "on": {
+          "type": "boolean"
+        },
+        "power": {
+          "type": "number",
+          "unit": "W"
+        }
+      },
+      "readOnly": true,
+      "forms": [
+        {
+          "href": "http://localhost:8081/status",
+          "op": "readproperty"
+        }
+      ]
+    }
+  },
+  "actions": {
+    "switchOn": {
+      "output": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          },
+          "power": {
+            "type": "number",
+            "unit": "W"
+          }
+        }
+      },
+      "forms": [
+        {
+          "href": "http://localhost:8081/on",
+          "op": "invokeaction",
+          "htv:methodName": "POST"
+        }
+      ]
+    },
+    "switchOff": {
+      "output": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          },
+          "power": {
+            "type": "number",
+            "unit": "W"
+          }
+        }
+      },
+      "forms": [
+        {
+          "href": "http://localhost:8081/off",
+          "op": "invokeaction",
+          "htv:methodName": "POST"
+        }
+      ]
+    }
+  }
+}

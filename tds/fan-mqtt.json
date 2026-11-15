@@ -1,0 +1,49 @@
+{
+  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "id": "urn:dev:room1-fan-mqtt",
+  "title": "room1-fan",
+  "securityDefinitions": {
+    "nosec": {
+      "scheme": "nosec"
+    }
+  },
+  "security": "nosec",
+  "properties": {
+    "status": {
+      "type": "object",
+      "properties": {
+        "on": {
+          "type": "boolean"
+        }
+      },
+      "readOnly": true,
+      "forms": [
+        {
+          "href": "mqtt://localhost:1883/building/room1/fan/status",
+          "op": [
+            "readproperty",
+            "observeproperty"
+          ]
+        }
+      ]
+    }
+  },
+  "actions": {
+    "switchOn": {
+      "forms": [
+        {
+          "href": "mqtt://localhost:1883/building/room1/fan/cmd",
+          "op": "invokeaction"
+        }
+      ]
+    },
+    "switchOff": {
+      "forms": [
+        {
+          "href": "mqtt://localhost:1883/building/room1/fan/cmd",
+          "op": "invokeaction"
+        }
+      ]
+    }
+  }
+}
