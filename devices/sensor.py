@@ -1,5 +1,5 @@
 import argparse
-import json
+import math
 import random
 import time
 
@@ -28,7 +28,7 @@ def main():
     t, h, hot = 24.0, 50.0, False
     while True:
         if a.mock:
-            t += random.uniform(-0.3, 0.4)
+            t = 27 + 4 * math.sin(time.time() / 20) + random.uniform(-0.2, 0.2)  # slow swing, crosses 26 and 28
             h = min(100, max(0, h + random.uniform(-1, 1)))
         else:
             try:
