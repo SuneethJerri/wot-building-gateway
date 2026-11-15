@@ -17,14 +17,14 @@ def find(directory, title):
     for td in get(directory + "/things"):
         if td["title"] == title:
             return td
-    raise SystemExit(f"no Thing called {title!r} in {directory}")
+    raise LookupError(f"no Thing called {title!r} in {directory}")
 
 
 def href(td, kind, name, op):
     for f in td[kind][name]["forms"]:
         if op in (f["op"] if isinstance(f["op"], list) else [f["op"]]):
             return f["href"]
-    raise SystemExit(f"{td['title']}.{name} has no {op} form")
+    raise LookupError(f"{td['title']}.{name} has no {op} form")
 
 
 def invoke(td, name):
@@ -69,11 +69,15 @@ def main():
     p.add_argument("--period", type=float, default=2.0)
     p.add_argument("--notify-url")
     a = p.parse_args()
+    watching = set()  # one overheat watcher per sensor link, not one per reconnect
     while True:
-        # looked up each round, so a swapped fan (CoAP <-> MQTT) is picked up without a restart
-        sensor, fan = find(a.directory, a.sensor), find(a.directory, a.fan)
-        threading.Thread(target=watch_overheat, args=(sensor, a.notify_url), daemon=True).start()
         try:
+            # looked up each round, so a swapped fan (CoAP <-> MQTT) is picked up without a restart
+            sensor, fan = find(a.directory, a.sensor), find(a.directory, a.fan)
+            link = href(sensor, "events", "overheat", "subscribeevent")
+            if link not in watching:
+                watching.add(link)
+                threading.Thread(target=watch_overheat, args=(sensor, a.notify_url), daemon=True).start()
             while True:
                 temp = get(href(sensor, "properties", "temperature", "readproperty"))
                 on = get(href(fan, "properties", "status", "readproperty"))["on"]
@@ -82,8 +86,8 @@ def main():
                 if act:
                     invoke(fan, act)
                 time.sleep(a.period)
-        except OSError as e:
-            print("gateway unreachable:", e, flush=True)
+        except (OSError, LookupError) as e:  # gateway restarting or Thing not registered yet
+            print("waiting for gateway/Directory:", e, flush=True)
             time.sleep(5)
 
 
