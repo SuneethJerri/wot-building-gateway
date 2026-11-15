@@ -50,8 +50,9 @@ python3 devices/http_plug.py &                   # simulated plug
 python3 app/app.py --hi 25 --lo 22               # watch the fan switch
 ```
 
-Check it: `curl localhost:8080/room1-sensor/properties/temperature`,
-`curl localhost:9000/things`.
+Open the dashboard at **http://localhost:9000/** (live temperature, fan and plug controls,
+overheat alerts, registered Things). Or check by hand:
+`curl localhost:8080/room1-sensor/properties/temperature`, `curl localhost:9000/things`.
 
 On the Pi, pass the real addresses: `python3 tds/gen.py --broker PI --coap H --plug H`
 and `node gateway.js --host PI_IP`. Each folder's README has the details.

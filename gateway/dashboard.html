@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Building Gateway</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mute:#6b7685; --line:#e2e6eb; --accent:#2563eb; --ok:#16a34a; --bad:#dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1a2029; --ink:#e7ebf0; --mute:#8d99a8; --line:#2a323d; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui, sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:24px 16px; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  h1 { font-size:20px; margin:0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .card h2 { font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin:0 0 8px; }
+  .big { font-size:40px; font-weight:600; line-height:1.1; }
+  .unit { font-size:18px; color:var(--mute); margin-left:2px; }
+  .mute { color:var(--mute); font-size:13px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:13px; font-weight:600; border:1px solid var(--line); }
+  .pill.on { color:var(--ok); border-color:var(--ok); }
+  .pill.off, .pill.bad { color:var(--mute); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--bad); margin-right:6px; }
+  .dot.ok { background:var(--ok); }
+  .row { display:flex; gap:8px; margin-top:12px; }
+  button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  svg { width:100%; height:48px; display:block; margin-top:8px; }
+  svg polyline { fill:none; stroke:var(--accent); stroke-width:2; }
+  ul { list-style:none; margin:0; padding:0; }
+  li { padding:6px 0; border-top:1px solid var(--line); font-size:14px; }
+  li:first-child { border-top:0; }
+  .wide { grid-column:1 / -1; }
+  .alert { color:var(--bad); font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Building Gateway</h1>
+    <span class="mute"><span class="dot" id="dot"></span><span id="conn">connecting</span></span>
+  </header>
+  <div class="grid">
+    <section class="card">
+      <h2>Temperature</h2>
+      <div><span class="big" id="temp">--</span><span class="unit">°C</span></div>
+      <svg viewBox="0 0 200 48" preserveAspectRatio="none" aria-label="Temperature, last 2 minutes"><polyline id="spark" points=""/></svg>
+      <div class="mute">Humidity <span id="hum">--</span> %</div>
+    </section>
+    <section class="card">
+      <h2>Fan</h2>
+      <span class="pill off" id="fan">--</span>
+      <div class="row"><button data-thing="room1-fan" data-act="switchOn">Switch on</button><button data-thing="room1-fan" data-act="switchOff">Switch off</button></div>
+    </section>
+    <section class="card">
+      <h2>Smart plug</h2>
+      <span class="pill off" id="plug">--</span> <span class="mute"><span id="power">--</span> W</span>
+      <div class="row"><button data-thing="room1-plug" data-act="switchOn">Switch on</button><button data-thing="room1-plug" data-act="switchOff">Switch off</button></div>
+    </section>
+    <section class="card wide">
+      <h2>Alerts</h2>
+      <ul id="alerts"><li class="mute">No overheat events yet</li></ul>
+    </section>
+    <section class="card wide">
+      <h2>Things in the Directory</h2>
+      <ul id="things"></ul>
+    </section>
+  </div>
+</main>
+<script>
+// Everything is looked up from the Thing Descriptions in the Directory, like app/app.py:
+// no device addresses or protocols here, only titles.
+const $ = (id) => document.getElementById(id);
+const hist = [];
+let things = {};
+let watching = "";
+
+const href = (td, kind, name, op) => (td?.[kind]?.[name]?.forms || []).find((f) => [].concat(f.op).includes(op))?.href;
+async function j(url, opt) {
+  const r = await fetch(url, opt);
+  if (!r.ok) throw new Error(r.status);
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+
+async function discover() {
+  things = {};
+  const all = await j("/things");
+  all.forEach((t) => (things[t.title] = t));
+  $("things").replaceChildren(...all.map((t) => {
+    const li = document.createElement("li");
+    const parts = [...Object.keys(t.properties || {}), ...Object.keys(t.actions || {}), ...Object.keys(t.events || {})];
+    li.textContent = `${t.title}: ${parts.join(", ")}`;
+    return li;
+  }));
+  if (!all.length) $("things").innerHTML = '<li class="mute">Nothing registered yet</li>';
+}
+
+function pill(el, on) { el.textContent = on ? "On" : "Off"; el.className = "pill " + (on ? "on" : "off"); }
+function gone(el) { el.textContent = "offline"; el.className = "pill bad"; }
+
+async function poll() {
+  try {
+    if (!Object.keys(things).length) await discover();
+    const [t, h, f, p] = await Promise.allSettled([
+      j(href(things["room1-sensor"], "properties", "temperature", "readproperty")),
+      j(href(things["room1-sensor"], "properties", "humidity", "readproperty")),
+      j(href(things["room1-fan"], "properties", "status", "readproperty")),
+      j(href(things["room1-plug"], "properties", "status", "readproperty")),
+    ]);
+    if (t.status === "fulfilled") {
+      $("temp").textContent = t.value.toFixed(1);
+      hist.push(t.value); if (hist.length > 60) hist.shift();
+      const lo = Math.min(...hist), hi = Math.max(...hist), span = Math.max(hi - lo, 1);
+      $("spark").setAttribute("points", hist.map((v, i) => `${(i / Math.max(hist.length - 1, 1)) * 200},${44 - ((v - lo) / span) * 40}`).join(" "));
+    }
+    if (h.status === "fulfilled") $("hum").textContent = h.value.toFixed(1);
+    f.status === "fulfilled" ? pill($("fan"), f.value.on) : gone($("fan"));
+    if (p.status === "fulfilled") { pill($("plug"), p.value.on); $("power").textContent = p.value.power; } else gone($("plug"));
+    const ok = [t, f, p].some((x) => x.status === "fulfilled");
+    $("dot").className = "dot" + (ok ? " ok" : "");
+    $("conn").textContent = ok ? "live" : "devices unreachable";
+    if (!ok) things = {};
+    watch();
+  } catch (e) {
+    things = {};
+    $("dot").className = "dot";
+    $("conn").textContent = "gateway unreachable";
+  }
+}
+
+async function watch() { // HTTP long-poll: one GET blocks until the next overheat event
+  const link = href(things["room1-sensor"], "events", "overheat", "subscribeevent");
+  if (!link || link === watching) return;
+  watching = link;
+  while (watching === link) {
+    try {
+      const v = await j(link);
+      const ul = $("alerts");
+      if (ul.firstChild?.classList?.contains("mute")) ul.replaceChildren();
+      const li = document.createElement("li");
+      li.innerHTML = '<span class="alert"></span> <span class="mute"></span>';
+      li.children[0].textContent = `Overheat: ${v} °C`;
+      li.children[1].textContent = new Date().toLocaleTimeString();
+      ul.prepend(li);
+    } catch (e) {
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+}
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  try {
+    await j(href(things[b.dataset.thing], "actions", b.dataset.act, "invokeaction"), { method: "POST", headers: { "Content-Type": "application/json" } });
+  } catch (err) { $("conn").textContent = "command failed"; }
+  poll();
+});
+
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

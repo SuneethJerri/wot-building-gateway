@@ -1,15 +1,22 @@
-// Minimal Thing Directory (subset of the W3C API): GET/POST /things, GET/PUT/DELETE /things/<id>
+// Minimal Thing Directory + serves dashboard.html at / (subset of the W3C API): GET/POST /things, GET/PUT/DELETE /things/<id>
 // ponytail: in-memory, lost on restart; gateway re-registers on start. Swap for thingweb.directory if needed.
+const fs = require("fs");
+const path = require("path");
 const http = require("http");
 
 function startDirectory(port = 9000) {
   const things = new Map();
   const srv = http.createServer((req, res) => {
     const id = decodeURIComponent(req.url.split("?")[0].replace(/^\/things\/?/, ""));
-    const send = (code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(body === undefined ? "" : JSON.stringify(body)); };
+    const send = (code, body) => { res.writeHead(code, { "content-type": "application/json", "access-control-allow-origin": "*" }); res.end(body === undefined ? "" : JSON.stringify(body)); };
     let buf = "";
     req.on("data", (c) => (buf += c));
     req.on("end", () => {
+      if (req.url === "/" && req.method === "GET") { // the dashboard
+        res.writeHead(200, { "content-type": "text/html" });
+        return res.end(fs.readFileSync(path.join(__dirname, "dashboard.html")));
+      }
+      if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, PUT, DELETE", "access-control-allow-headers": "content-type" }); return res.end(); }
       if (!req.url.startsWith("/things")) return send(404, { error: "not found" });
       if (req.method === "GET") return id ? (things.has(id) ? send(200, things.get(id)) : send(404, { error: "no such thing" })) : send(200, [...things.values()]);
       if (req.method === "DELETE") { things.delete(id); return send(204); }
