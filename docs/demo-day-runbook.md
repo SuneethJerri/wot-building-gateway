@@ -123,35 +123,36 @@ curl -s -X POST http://10.164.189.4:8080/room1-fan/actions/switchOn   # HTTP 204
 ```
 Expected app output: `temp NN fan off -> switchOn` crossing hi, `-> switchOff` crossing lo.
 
-### Level 1.m — Multi-client scale (3 / 30 / 60 / 120 sim sensors)  ✅ VERIFIED 2026-11-16
+### Level 1.m / 1.scale — Multi-client scale  ✅ COMPLETE 2026-11-16
 Many fake MQTT sensors on the laptop → one gateway on the Pi → **scale dashboard** at
-`/scale` (live temperature heatmap + aggregate tiles). Same gateway, just more Things.
+`/scale` (live temperature heatmap + aggregate tiles + Pi CPU/temp/RAM card).
 
-**Laptop:**
+**One command** (repo root, laptop):
 ```sh
-# start N fake sensors (writes a TD per sensor to tds/sim/, publishes building/simI/temp):
-devices/.venv/bin/python devices/sim/sim.py <N> --broker 10.164.189.251    # N = 3,30,60,120
+./scale.sh <N>            # N = 3 / 30 / 60 / 120   (default 30)
+```
+It regenerates the room TDs with the laptop IP, (re)starts N sim sensors, rsyncs
+(`--delete`, so a smaller N drops leftover TDs), and restarts the gateway on room + sim.
+Override addresses per machine: `LAPTOP_IP=.. PI_IP=.. PI_USER=.. ./scale.sh 60`.
+
+**Change N:** just re-run `./scale.sh <newN>`.  **Stop sims:** `pkill -f sim/sim.py`.
+
+**View:** `http://<pi>:9000/scale` (linked from the main dashboard too).
+
+**Verify from CLI:**
+```sh
+curl -s http://<pi>:9000/things | python3 -c "import sys,json;print(len(json.load(sys.stdin)),'things')"
+curl -s http://<pi>:9000/stats
 ```
 
-**Pi** — load the room TDs *and* the sim folder (helper: `<scratchpad>/deploy_scale.sh`
-rsyncs + restarts):
-```sh
-rsync -a --exclude node_modules --exclude .git gateway tds pi@10.164.189.4:~/wot-building-gateway/
-ssh pi@10.164.189.4 'bash ~/start_gateway_scale.sh'   # node gateway.js --host <pi> ../tds/{sensor,fan-coap,plug}.json ../tds/sim
-```
+Notes / gotchas baked into `scale.sh`:
+- Committing reverts `tds/*.json` to **localhost**; the script regenerates them each run so
+  the Pi's room Things don't point at the Pi's own localhost and go dead.
+- `rsync --delete` is required — `sim.py` clears old sim TDs only on the laptop; without
+  `--delete` the Pi keeps stale sensors from a larger previous N.
 
-**View:** `http://10.164.189.4:9000/scale` (linked from the main dashboard too).
-
-**⚠️ Gotcha that bit us:** committing reverts `tds/*.json` to the committed **localhost**
-versions. You MUST regenerate the room TDs for the environment *before* deploying, or the
-Pi's room Things point at the Pi's own localhost and go dead (sim Things still work since
-`sim.py` writes fresh laptop-IP TDs):
-```sh
-python3 tds/gen.py --broker 10.164.189.251 --coap 10.164.189.251 --plug 10.164.189.251
-```
-
-**Measured (N=120):** 123 Things, `/things` fetch 0.10s, gateway ~35% CPU / 92 MB RSS on the
-Pi (3.7 GB RAM, 2 GB free) — lots of headroom. Resource-vs-N numbers → `eval/eval.py resources`.
+**Measured:** N=120 → 123 Things, `/things` 0.10s, gateway ~35% CPU / 92 MB RSS on the Pi 4
+(2 GB free). N=60 → 63 Things. Resource-vs-N numbers → `eval/eval.py resources`.
 
 ### Level 2 — RPi all-in-one (real DHT11 + relay on the Pi)
 - [ ] DHT22→DHT11 code change; relay active-low (`active_high=False`)

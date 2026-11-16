@@ -144,3 +144,14 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   pushing temp across the fan thresholds during a demo. Verified end-to-end: nudge +4°C →
   MQTT 32.0 → gateway room1-sensor 32. Fan/plug switch buttons toggle state too.
 - devices/README documents `--gui`.
+
+### ✅ LEVEL 1.m / 1.scale COMPLETE
+- Added committed `./scale.sh <N>` (repo root): one command to run the scale test —
+  regenerates room TDs with the laptop IP, (re)starts N sim sensors, rsyncs (`--delete`),
+  restarts the gateway on room + sim, prints the exposed count + `/scale` URL. Addresses
+  overridable via env (LAPTOP_IP / PI_IP / PI_USER).
+- Fixed two bugs found while writing it: (1) rsync needed `--delete` or the Pi kept stale
+  sim TDs from a larger previous N (got 123 when expecting 63); (2) inline ssh background
+  launch returned early → switched to a file launcher + separate count step.
+- Verified N=60 → 63 Things (sim0..sim59 live, sim119 gone/404, room1-sensor live).
+- Level 1 (sim), Level 1.m (scale), per-device GUIs, and Pi host stats: all done & pushed.
