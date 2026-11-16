@@ -16,6 +16,10 @@ function startDirectory(port = 9000) {
         res.writeHead(200, { "content-type": "text/html" });
         return res.end(fs.readFileSync(path.join(__dirname, "dashboard.html")));
       }
+      if ((req.url === "/scale" || req.url === "/scale/") && req.method === "GET") { // multi-client scale view
+        res.writeHead(200, { "content-type": "text/html" });
+        return res.end(fs.readFileSync(path.join(__dirname, "scale.html")));
+      }
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, PUT, DELETE", "access-control-allow-headers": "content-type" }); return res.end(); }
       if (!req.url.startsWith("/things")) return send(404, { error: "not found" });
       if (req.method === "GET") return id ? (things.has(id) ? send(200, things.get(id)) : send(404, { error: "no such thing" })) : send(200, [...things.values()]);

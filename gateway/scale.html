@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gateway — Scale View</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mute:#6b7685; --line:#e2e6eb; --accent:#2563eb; --ok:#16a34a; --bad:#dc2626; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12161c; --card:#1a2029; --ink:#e7ebf0; --mute:#8d99a8; --line:#2a323d; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; } }
+  :root[data-theme="dark"] { --bg:#12161c; --card:#1a2029; --ink:#e7ebf0; --mute:#8d99a8; --line:#2a323d; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  h1 { font-size:20px; margin:0; }
+  a.nav { color:var(--accent); text-decoration:none; font-size:14px; }
+  .mute { color:var(--mute); font-size:13px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card h2 { font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin:0 0 6px; }
+  .big { font-size:34px; font-weight:600; line-height:1.1; }
+  .unit { font-size:15px; color:var(--mute); margin-left:2px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--bad); margin-right:6px; }
+  .dot.ok { background:var(--ok); }
+  .gridwrap { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .gridwrap h2 { font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin:0 0 12px; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(54px, 1fr)); gap:6px; }
+  .cell { aspect-ratio:1; border-radius:6px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.35); border:1px solid rgba(0,0,0,.08); overflow:hidden; }
+  .cell small { font-size:9px; font-weight:500; opacity:.85; }
+  .cell.stale { opacity:.3; filter:grayscale(1); }
+  .cell.hot { outline:2px solid var(--bad); outline-offset:-2px; }
+  .legend { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12px; color:var(--mute); flex-wrap:wrap; }
+  .ramp { height:12px; width:180px; border-radius:6px; border:1px solid var(--line); background:linear-gradient(90deg, hsl(210 70% 50%), hsl(140 60% 45%), hsl(45 90% 50%), hsl(0 75% 52%)); }
+  button { font:inherit; padding:5px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Gateway — Scale View</h1>
+      <span class="mute"><span class="dot" id="dot"></span><span id="conn">connecting</span> · refresh <span id="rate">--</span></span>
+    </div>
+    <div class="mute">
+      <a class="nav" href="/">← single-room dashboard</a>
+      &nbsp; <button id="theme">◐ theme</button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <section class="card"><h2>Sensors</h2><div><span class="big" id="n">--</span></div></section>
+    <section class="card"><h2>Average</h2><div><span class="big" id="avg">--</span><span class="unit">°C</span></div></section>
+    <section class="card"><h2>Min / Max</h2><div><span class="big" id="minmax">--</span><span class="unit">°C</span></div></section>
+    <section class="card"><h2>Over <span id="thlabel">30</span>°C</h2><div><span class="big" id="hot">--</span></div></section>
+  </div>
+
+  <div class="gridwrap">
+    <h2>Live temperature heatmap — <span id="gcount">0</span> things</h2>
+    <div id="grid"></div>
+    <div class="legend">
+      <span id="lmin">18°C</span><span class="ramp"></span><span id="lmax">34°C</span>
+      <span style="margin-left:auto">cold → hot · grey = no reading yet · red outline = over threshold</span>
+    </div>
+  </div>
+</main>
+<script>
+// Protocol-agnostic like app/app.py and dashboard.html: everything is resolved through the
+// Thing Descriptions in the Directory. We show every Thing that has a `temperature` property.
+const $ = (id) => document.getElementById(id);
+const TMIN = 18, TMAX = 34;        // color-ramp range (°C)
+const THRESHOLD = 30;              // "over" count + hot outline
+const PERIOD = 2500;               // poll interval (ms)
+$("thlabel").textContent = THRESHOLD; $("lmin").textContent = TMIN + "°C"; $("lmax").textContent = TMAX + "°C"; $("rate").textContent = (PERIOD/1000) + "s";
+
+const href = (td, kind, name, op) => (td?.[kind]?.[name]?.forms || []).find((f) => [].concat(f.op).includes(op))?.href;
+async function j(url, opt) { const r = await fetch(url, opt); if (!r.ok) throw new Error(r.status); const t = await r.text(); return t ? JSON.parse(t) : null; }
+
+// temp -> HSL: hue 210 (cool blue) down to 0 (red) across [TMIN, TMAX]
+function tempColor(t) { const f = Math.max(0, Math.min(1, (t - TMIN) / (TMAX - TMIN))); const hue = 210 - 210 * f; return `hsl(${hue} 70% 48%)`; }
+
+let sensors = [];   // [{title, href, cell, valEl}]
+let cellOf = {};
+
+async function discover() {
+  const all = await j("/things");
+  const temps = all.filter((t) => href(t, "properties", "temperature", "readproperty"))
+                   .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+  const grid = $("grid"); grid.replaceChildren(); sensors = []; cellOf = {};
+  for (const t of temps) {
+    const cell = document.createElement("div"); cell.className = "cell stale"; cell.style.background = "var(--line)";
+    cell.title = t.title;
+    const v = document.createElement("span"); v.textContent = "--";
+    const lab = document.createElement("small"); lab.textContent = t.title.replace(/^room1-|^building-/, "");
+    cell.append(v, lab); grid.append(cell);
+    sensors.push({ title: t.title, href: href(t, "properties", "temperature", "readproperty"), cell, valEl: v });
+  }
+  $("n").textContent = temps.length; $("gcount").textContent = temps.length;
+}
+
+async function poll() {
+  try {
+    if (!sensors.length) await discover();
+    const results = await Promise.allSettled(sensors.map((s) => j(s.href)));
+    let sum = 0, ok = 0, hot = 0, lo = Infinity, hi = -Infinity;
+    results.forEach((r, i) => {
+      const s = sensors[i];
+      if (r.status === "fulfilled" && typeof r.value === "number") {
+        const t = r.value; ok++; sum += t; lo = Math.min(lo, t); hi = Math.max(hi, t);
+        s.cell.className = "cell" + (t >= THRESHOLD ? " hot" : ""); s.cell.style.background = tempColor(t);
+        s.valEl.textContent = t.toFixed(1); if (t >= THRESHOLD) hot++;
+      } else { s.cell.className = "cell stale"; s.cell.style.background = "var(--line)"; s.valEl.textContent = "--"; }
+    });
+    $("avg").textContent = ok ? (sum / ok).toFixed(1) : "--";
+    $("minmax").textContent = ok ? `${lo.toFixed(1)} / ${hi.toFixed(1)}` : "--";
+    $("hot").textContent = hot;
+    $("dot").className = "dot" + (ok ? " ok" : "");
+    $("conn").textContent = ok ? `live · ${ok}/${sensors.length} reporting` : "sensors unreachable";
+    if (!ok) sensors = [];   // force re-discover if everything dropped
+  } catch (e) {
+    sensors = []; $("dot").className = "dot"; $("conn").textContent = "gateway unreachable";
+  }
+}
+
+// light/dark toggle (persists per browser; falls back silently)
+(function () {
+  try { const s = localStorage.getItem("scaleTheme"); if (s) document.documentElement.dataset.theme = s; } catch (e) {}
+  $("theme").addEventListener("click", () => {
+    const cur = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = cur; try { localStorage.setItem("scaleTheme", cur); } catch (e) {}
+  });
+})();
+
+poll(); setInterval(poll, PERIOD);
+</script>
+</body>
+</html>

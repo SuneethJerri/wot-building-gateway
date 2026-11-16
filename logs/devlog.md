@@ -110,3 +110,18 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   `temp 28.1 ... -> switchOn`. Protocol-agnostic path confirmed (app only used Directory + TD forms).
 - ↪ Everything that runs on the Pi for L1 is just the Node gateway — no Python/library
   risk on the moody Pi at this level.
+
+### ✅ LEVEL 1.m (multi-client scale) WORKING
+- Built a **scale dashboard** `gateway/scale.html` (served at `/scale` via directory.js):
+  live temperature **heatmap grid** (cold→hot HSL ramp) + aggregate tiles (count, avg,
+  min/max, # over threshold). Protocol-agnostic like the app (TD forms only). Reuses the
+  main dashboard's design tokens; linked both ways.
+- Reused existing `devices/sim/sim.py N --broker <laptop>` — N fake MQTT sensors + a TD each
+  in `tds/sim/`. Gateway loads room TDs + `../tds/sim` together (`start_gateway_scale.sh`).
+- Verified N=30 (33 Things) and **N=120 (123 Things)**: `/things` 0.10s, gateway ~35% CPU /
+  92 MB RSS on the Pi 4 (2 GB free) — scales with big headroom. Sample reads across sim0..119
+  + room1 all live.
+- ⚠️ Gotcha: committing reverts `tds/*.json` to committed **localhost** → re-running deploy
+  pushed localhost room TDs to the Pi and room1 Things went dead (sim OK). Fix: regenerate
+  room TDs with the laptop IP before each deploy. Documented in runbook.
+- Next for 1.m: `eval/eval.py resources` to record CPU/RAM vs N (3/30/60/120) on the Pi.
