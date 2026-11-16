@@ -33,6 +33,12 @@
   .ramp { height:12px; width:180px; border-radius:6px; border:1px solid var(--line); background:linear-gradient(90deg, hsl(210 70% 50%), hsl(140 60% 45%), hsl(45 90% 50%), hsl(0 75% 52%)); }
   button { font:inherit; padding:5px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
   button:hover { border-color:var(--accent); }
+  .pi { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:14px 20px; }
+  .pistat { display:flex; align-items:center; gap:10px; }
+  .pilabel { font-size:13px; color:var(--mute); min-width:62px; }
+  .pival { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; min-width:92px; text-align:right; }
+  .bar { flex:1; height:8px; background:var(--line); border-radius:99px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; border-radius:99px; background:var(--accent); transition:width .4s, background .4s; }
 </style>
 </head>
 <body>
@@ -53,6 +59,16 @@
     <section class="card"><h2>Average</h2><div><span class="big" id="avg">--</span><span class="unit">°C</span></div></section>
     <section class="card"><h2>Min / Max</h2><div><span class="big" id="minmax">--</span><span class="unit">°C</span></div></section>
     <section class="card"><h2>Over <span id="thlabel">30</span>°C</h2><div><span class="big" id="hot">--</span></div></section>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h2 style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:0 0 10px">Raspberry Pi (gateway host)</h2>
+    <div class="pi">
+      <div class="pistat"><span class="pilabel">CPU util</span><div class="bar"><i id="cpubar"></i></div><span class="pival" id="cpu">--</span></div>
+      <div class="pistat"><span class="pilabel">CPU temp</span><div class="bar"><i id="tempbar"></i></div><span class="pival" id="ptemp">--</span></div>
+      <div class="pistat"><span class="pilabel">RAM</span><div class="bar"><i id="membar"></i></div><span class="pival" id="mem">--</span></div>
+      <div class="pistat"><span class="pilabel">Load / up</span><span class="pival" id="loadup" style="min-width:0">--</span></div>
+    </div>
   </div>
 
   <div class="gridwrap">
@@ -122,6 +138,22 @@ async function poll() {
   }
 }
 
+// --- Raspberry Pi host stats ---
+function setBar(el, pct, warn, bad) {
+  el.style.width = Math.max(0, Math.min(100, pct)) + "%";
+  el.style.background = pct >= bad ? "var(--bad)" : pct >= warn ? "hsl(38 92% 50%)" : "var(--accent)";
+}
+function fmtUptime(s) { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; }
+async function pollStats() {
+  try {
+    const s = await j("/stats");
+    if (s.cpuPct != null) { $("cpu").textContent = s.cpuPct.toFixed(0) + " %"; setBar($("cpubar"), s.cpuPct, 60, 85); } else $("cpu").textContent = "n/a";
+    if (s.tempC != null) { $("ptemp").textContent = s.tempC.toFixed(1) + " °C"; setBar($("tempbar"), (s.tempC / 85) * 100, 65/85*100, 80/85*100); } else $("ptemp").textContent = "n/a";
+    if (s.memPct != null) { $("mem").textContent = `${s.memUsedMB}/${s.memTotalMB} MB`; setBar($("membar"), s.memPct, 70, 90); } else $("mem").textContent = "n/a";
+    $("loadup").textContent = `${s.load1 != null ? s.load1.toFixed(2) : "--"} · ${fmtUptime(s.uptimeS)}`;
+  } catch (e) { $("cpu").textContent = $("ptemp").textContent = $("mem").textContent = "--"; }
+}
+
 // light/dark toggle (persists per browser; falls back silently)
 (function () {
   try { const s = localStorage.getItem("scaleTheme"); if (s) document.documentElement.dataset.theme = s; } catch (e) {}
@@ -132,6 +164,7 @@ async function poll() {
 })();
 
 poll(); setInterval(poll, PERIOD);
+pollStats(); setInterval(pollStats, 2000);
 </script>
 </body>
 </html>

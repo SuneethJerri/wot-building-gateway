@@ -125,3 +125,22 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   pushed localhost room TDs to the Pi and room1 Things went dead (sim OK). Fix: regenerate
   room TDs with the laptop IP before each deploy. Documented in runbook.
 - Next for 1.m: `eval/eval.py resources` to record CPU/RAM vs N (3/30/60/120) on the Pi.
+
+### ✅ Pi host stats on the scale dashboard
+- `directory.js`: added `/stats` endpoint reading straight from `/proc` + `/sys` (no deps,
+  respecting the moody-Pi rule): CPU util (1s `/proc/stat` sampler), CPU temp
+  (`/sys/class/thermal/thermal_zone0/temp`), RAM (`/proc/meminfo`), load, cores, uptime.
+- `scale.html`: added a "Raspberry Pi (gateway host)" card with CPU/temp/RAM bars (green→
+  amber→red) + load/uptime, polled every 2s.
+- Verified live: `{cpuPct, tempC:62.3, memUsedMB:711/3744, load1:2.68, cores:4}`.
+
+### ✅ Per-device GUIs (the "3 clients" request)
+- New `devices/gui.py` — stdlib-only embedded web panel (daemon thread), shared by all
+  devices via `--gui PORT`. Generic: `GET /state` (dict), `POST /action/<label>`; booleans
+  render as On/Off pills, a `temperature` key gets a sparkline. Matches dashboard styling.
+  This is the Level-1 stand-in for the self-hosted page each ESP32 will serve in Level 3.
+- Wired `--gui` into `sensor.py` (8090), `http_plug.py` (8091), `coap_relay.py` (8092).
+- Sensor GUI adds **nudge** buttons (Heat +2°C / Cool −2°C / Clear) — a manual offset for
+  pushing temp across the fan thresholds during a demo. Verified end-to-end: nudge +4°C →
+  MQTT 32.0 → gateway room1-sensor 32. Fan/plug switch buttons toggle state too.
+- devices/README documents `--gui`.

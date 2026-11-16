@@ -24,6 +24,20 @@ No hardware? Add `--mock` to the relays, they just keep the state in memory.
     ./run.sh mqtt --mock --broker 192.168.1.10
     ./run.sh http
 
+### Per-device GUI
+
+Each device can serve its own small web panel with `--gui PORT` (standard library only,
+runs in a background thread; `gui.py` is the shared helper). This mirrors the Level-3 story
+where each ESP32 hosts its own page.
+
+    python3 sensor.py --mock --gui 8090      # temp/humidity + sparkline; Heat/Cool nudge buttons
+    python3 coap_relay.py --mock --gui 8092   # fan on/off status + switch buttons
+    python3 http_plug.py --gui 8091           # plug on/off + power + switch buttons (native HTTP stays :8081)
+
+Open `http://<host>:<gui-port>/`. The sensor's **nudge** buttons add/subtract a manual
+offset to the reading — handy in a demo to push the temperature across the fan thresholds
+on purpose. Endpoints: `GET /state` (JSON), `POST /action/<label>`.
+
 `run.sh coap` kills a running mqtt relay and the other way round, that's the swap
 for the interoperability test. On the Pi without `--mock` the relay uses GPIO 17
 (`--pin` to change it).

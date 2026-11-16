@@ -34,5 +34,12 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8081)
+    p.add_argument("--gui", type=int, default=0, help="serve a device GUI on this port (0 = off)")
     a = p.parse_args()
+    if a.gui:
+        from gui import run_gui
+        run_gui(a.gui, "room1 plug", "HTTP · plug",
+                reading,
+                {"Switch on": lambda: state.update(on=True),
+                 "Switch off": lambda: state.update(on=False)})
     app.run(host=a.host, port=a.port)

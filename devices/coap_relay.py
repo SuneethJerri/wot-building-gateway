@@ -47,8 +47,15 @@ async def main():
     p.add_argument("--port", type=int, default=5683)
     p.add_argument("--pin", type=int, default=17)
     p.add_argument("--mock", action="store_true", help="no GPIO, state only")
+    p.add_argument("--gui", type=int, default=0, help="serve a device GUI on this port (0 = off)")
     a = p.parse_args()
     relay = Relay(a.pin, a.mock)
+    if a.gui:
+        from gui import run_gui
+        run_gui(a.gui, "room1 fan", "CoAP · relay",
+                lambda: {"on": relay.on},
+                {"Switch on": lambda: relay.set(True),
+                 "Switch off": lambda: relay.set(False)})
     await aiocoap.Context.create_server_context(make_site(relay), bind=(a.host, a.port))
     print(f"coap relay on {a.host}:{a.port}", flush=True)
     await asyncio.get_running_loop().create_future()  # run until killed
