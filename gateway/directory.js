@@ -54,6 +54,18 @@ function startDirectory(port = 9000) {
       if (req.url === "/stats" && req.method === "GET") { // host (Pi) stats: RAM, CPU temp, CPU util
         return send(200, hostStats());
       }
+      if (req.url === "/theme.css" && req.method === "GET") { // shared styles + colour themes of both pages
+        res.writeHead(200, { "content-type": "text/css" });
+        return res.end(fs.readFileSync(path.join(__dirname, "theme.css")));
+      }
+      const font = req.method === "GET" && /^\/fonts\/([\w-]+\.woff2)$/.exec(req.url); // self-hosted: the hotspot may be offline
+      if (font) {
+        try {
+          const data = fs.readFileSync(path.join(__dirname, "fonts", font[1]));
+          res.writeHead(200, { "content-type": "font/woff2", "cache-control": "max-age=86400" });
+          return res.end(data);
+        } catch (e) { return send(404, { error: "no such font" }); }
+      }
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, PUT, DELETE", "access-control-allow-headers": "content-type" }); return res.end(); }
       if (!req.url.startsWith("/things")) return send(404, { error: "not found" });
       if (req.method === "GET") return id ? (things.has(id) ? send(200, things.get(id)) : send(404, { error: "no such thing" })) : send(200, [...things.values()]);

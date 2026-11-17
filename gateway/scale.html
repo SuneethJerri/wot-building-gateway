@@ -3,115 +3,132 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gateway — Scale View</title>
+<title>Scale · Building Gateway</title>
+<link rel="stylesheet" href="/theme.css">
+<script>try { const t = localStorage.getItem("gwTheme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mute:#6b7685; --line:#e2e6eb; --accent:#2563eb; --ok:#16a34a; --bad:#dc2626; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12161c; --card:#1a2029; --ink:#e7ebf0; --mute:#8d99a8; --line:#2a323d; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; } }
-  :root[data-theme="dark"] { --bg:#12161c; --card:#1a2029; --ink:#e7ebf0; --mute:#8d99a8; --line:#2a323d; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui, sans-serif; }
-  main { max-width:1100px; margin:0 auto; padding:24px 16px; }
-  header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
-  h1 { font-size:20px; margin:0; }
-  a.nav { color:var(--accent); text-decoration:none; font-size:14px; }
-  .mute { color:var(--mute); font-size:13px; }
-  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
-  .card h2 { font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin:0 0 6px; }
-  .big { font-size:34px; font-weight:600; line-height:1.1; }
-  .unit { font-size:15px; color:var(--mute); margin-left:2px; }
-  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--bad); margin-right:6px; }
-  .dot.ok { background:var(--ok); }
-  .gridwrap { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
-  .gridwrap h2 { font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin:0 0 12px; }
-  #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(54px, 1fr)); gap:6px; }
-  .cell { aspect-ratio:1; border-radius:6px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.35); border:1px solid rgba(0,0,0,.08); overflow:hidden; }
-  .cell small { font-size:9px; font-weight:500; opacity:.85; }
-  .cell.stale { opacity:.3; filter:grayscale(1); }
-  .cell.hot { outline:2px solid var(--bad); outline-offset:-2px; }
-  .legend { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12px; color:var(--mute); flex-wrap:wrap; }
-  .ramp { height:12px; width:180px; border-radius:6px; border:1px solid var(--line); background:linear-gradient(90deg, hsl(210 70% 50%), hsl(140 60% 45%), hsl(45 90% 50%), hsl(0 75% 52%)); }
-  button { font:inherit; padding:5px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
-  button:hover { border-color:var(--accent); }
-  .pi { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:14px 20px; }
-  .pistat { display:flex; align-items:center; gap:10px; }
-  .pilabel { font-size:13px; color:var(--mute); min-width:62px; }
-  .pival { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; min-width:92px; text-align:right; }
-  .bar { flex:1; height:8px; background:var(--line); border-radius:99px; overflow:hidden; }
-  .bar i { display:block; height:100%; width:0; border-radius:99px; background:var(--accent); transition:width .4s, background .4s; }
+  .page { max-width:1560px; margin:0 auto; padding:20px 32px 48px; display:grid; gap:24px; }
+  @media (max-width:760px) { .page { padding-left:16px; padding-right:16px; } }
+  h1 { font-size:clamp(28px, 1.6vw + 14px, 42px); line-height:1.12; font-weight:800; letter-spacing:-.02em; margin:0 0 8px; text-wrap:balance; }
+  h1 b { color:var(--teal-ink); }
+  h1 b.warn { color:var(--red); }
+  .sub { font-size:clamp(17px, .5vw + 14px, 21px); margin:0; color:var(--ink-2); text-wrap:pretty; }
+  .tiles { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin-top:18px; }
+  .tile { background:var(--ground); border-radius:16px; padding:12px 16px; }
+  .tile strong { display:block; font-size:26px; font-weight:800; line-height:1.2; letter-spacing:-.01em; }
+  .tile span { font-size:14px; color:var(--mute); }
+  @media (max-width:760px) { .tiles { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  .cols { display:grid; grid-template-columns:minmax(0, 8fr) minmax(0, 4fr); gap:24px; align-items:start; }
+  @media (max-width:1180px) { .cols { grid-template-columns:minmax(0, 1fr); } }
+  h2 { font-size:clamp(18px, .4vw + 15px, 22px); font-weight:700; line-height:1.3; margin:0; letter-spacing:-.01em; text-wrap:balance; }
+  .hint { font-size:15px; color:var(--mute); margin:4px 0 14px; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:8px; }
+  .cell { aspect-ratio:1; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-weight:800; font-size:16px; overflow:hidden;
+    transition:background-color 400ms ease, color 400ms ease; }
+  .cell small { font-size:12px; font-weight:600; opacity:.85; }
+  .cell.stale { background:transparent !important; color:var(--mute) !important; outline:2px dashed var(--edge); outline-offset:-2px; }
+  .cell.hot { box-shadow:inset 0 0 0 3px var(--red); }
+  .legend { display:flex; align-items:center; gap:10px; margin-top:16px; font-size:14px; color:var(--mute); flex-wrap:wrap; }
+  .ramp { height:12px; width:200px; border-radius:999px; background:linear-gradient(90deg, var(--cool), var(--mid) 56%, var(--hot)); }
+  .pi { display:grid; gap:14px; margin-top:16px; }
+  .pistat { display:grid; grid-template-columns:84px minmax(0, 1fr) auto; align-items:center; gap:12px; }
+  .pilabel { font-size:14px; font-weight:600; color:var(--ink-2); }
+  .pival { font-size:15px; font-weight:700; text-align:right; min-width:96px; }
+  .bar { height:10px; background:var(--ground); border-radius:999px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; border-radius:999px; background:var(--teal); transition:width 400ms var(--ease-out), background-color 400ms ease; }
+  .bar i[data-tone="warn"] { background:var(--amber-ink); } .bar i[data-tone="bad"] { background:var(--red); }
+  .note { font-size:14px; color:var(--mute); margin:16px 0 0; }
+  @media (prefers-reduced-motion:reduce) { .cell, .bar i { transition:none; } }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <div>
-      <h1>Gateway — Scale View</h1>
-      <span class="mute"><span class="dot" id="dot"></span><span id="conn">connecting</span> · refresh <span id="rate">--</span></span>
-    </div>
-    <div class="mute">
-      <a class="nav" href="/">← single-room dashboard</a>
-      &nbsp; <button id="theme">◐ theme</button>
-    </div>
-  </header>
-
-  <div class="stats">
-    <section class="card"><h2>Sensors</h2><div><span class="big" id="n">--</span></div></section>
-    <section class="card"><h2>Average</h2><div><span class="big" id="avg">--</span><span class="unit">°C</span></div></section>
-    <section class="card"><h2>Min / Max</h2><div><span class="big" id="minmax">--</span><span class="unit">°C</span></div></section>
-    <section class="card"><h2>Over <span id="thlabel">30</span>°C</h2><div><span class="big" id="hot">--</span></div></section>
+<header class="shell">
+  <a class="brand" href="/"><span class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/></svg></span>Building Gateway</a>
+  <nav aria-label="Views">
+    <a href="/">Room 1</a>
+    <a href="/scale" aria-current="page">Scale<span id="nav-n"></span></a>
+    <a href="/#things">Things</a>
+  </nav>
+  <div class="status">
+    <span class="live" id="live" data-state="connecting"><i></i><span id="conn">Connecting</span></span>
+    <label class="theme">Theme
+      <select id="theme"><option value="">Auto</option><option value="warm">Warm</option><option value="night">Night</option><option value="ocean">Ocean</option><option value="lilac">Lilac</option></select>
+    </label>
   </div>
+</header>
+<div class="banner" id="banner" role="alert" hidden>Can't reach the gateway.<span>Check that it is running (./lab.sh status). On the phone hotspot, ping the laptop from the Pi once to wake the network.</span></div>
 
-  <div class="card" style="margin-bottom:16px">
-    <h2 style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:0 0 10px">Raspberry Pi (gateway host)</h2>
-    <div class="pi">
-      <div class="pistat"><span class="pilabel">CPU util</span><div class="bar"><i id="cpubar"></i></div><span class="pival" id="cpu">--</span></div>
-      <div class="pistat"><span class="pilabel">CPU temp</span><div class="bar"><i id="tempbar"></i></div><span class="pival" id="ptemp">--</span></div>
-      <div class="pistat"><span class="pilabel">RAM</span><div class="bar"><i id="membar"></i></div><span class="pival" id="mem">--</span></div>
-      <div class="pistat"><span class="pilabel">Load / up</span><span class="pival" id="loadup" style="min-width:0">--</span></div>
+<main class="page">
+  <section class="card" aria-labelledby="headline">
+    <h1 id="headline">Looking for sensors in the Thing Directory.</h1>
+    <p class="sub" id="sub">Every sensor here is a Thing behind one gateway, read the same way as Room 1.</p>
+    <div class="tiles">
+      <div class="tile"><strong id="n">–</strong><span>sensors reporting</span></div>
+      <div class="tile"><strong id="avg">–</strong><span>average temperature</span></div>
+      <div class="tile"><strong id="minmax">–</strong><span>coolest to warmest</span></div>
+      <div class="tile"><strong id="hot">–</strong><span>over <span id="thlabel">30</span> °C</span></div>
     </div>
-  </div>
+  </section>
 
-  <div class="gridwrap">
-    <h2>Live temperature heatmap — <span id="gcount">0</span> things</h2>
-    <div id="grid"></div>
-    <div class="legend">
-      <span id="lmin">18°C</span><span class="ramp"></span><span id="lmax">34°C</span>
-      <span style="margin-left:auto">cold → hot · grey = no reading yet · red outline = over threshold</span>
-    </div>
+  <div class="cols">
+    <section class="card" aria-labelledby="map-h">
+      <h2 id="map-h">Live temperature of every sensor</h2>
+      <p class="hint">Read through the gateway every <span id="rate">2.5</span> s. Blue is cool, red is hot, pale is comfortable; a red ring means over the alarm.</p>
+      <div id="grid" role="list" aria-label="Sensors"></div>
+      <div class="legend" aria-hidden="true"><span id="lmin">18 °C</span><span class="ramp"></span><span id="lmax">34 °C</span><span style="margin-left:auto">Dashed outline: no reading yet</span></div>
+    </section>
+
+    <section class="card" aria-labelledby="pi-h">
+      <h2 id="pi-h">The gateway host is running.</h2>
+      <p class="hint">Raspberry Pi (or this laptop in simulation), read from /proc.</p>
+      <div class="pi">
+        <div class="pistat"><span class="pilabel">CPU</span><div class="bar"><i id="cpubar"></i></div><span class="pival" id="cpu">–</span></div>
+        <div class="pistat"><span class="pilabel">Chip temp</span><div class="bar"><i id="tempbar"></i></div><span class="pival" id="ptemp">–</span></div>
+        <div class="pistat"><span class="pilabel">Memory</span><div class="bar"><i id="membar"></i></div><span class="pival" id="mem">–</span></div>
+        <div class="pistat"><span class="pilabel">Load</span><span></span><span class="pival" id="loadup">–</span></div>
+      </div>
+      <p class="note">The gateway's CPU and memory as sensors are added are in eval/eval.py resources.</p>
+    </section>
   </div>
 </main>
 <script>
 // Protocol-agnostic like app/app.py and dashboard.html: everything is resolved through the
-// Thing Descriptions in the Directory. We show every Thing that has a `temperature` property.
+// Thing Descriptions in the Directory. Every Thing that has a `temperature` property is shown.
 const $ = (id) => document.getElementById(id);
-const TMIN = 18, TMAX = 34;        // color-ramp range (°C)
-const THRESHOLD = 30;              // "over" count + hot outline
-const PERIOD = 2500;               // poll interval (ms)
-$("thlabel").textContent = THRESHOLD; $("lmin").textContent = TMIN + "°C"; $("lmax").textContent = TMAX + "°C"; $("rate").textContent = (PERIOD/1000) + "s";
+const TMIN = 18, TMAX = 34, MID = 27;  // colour ramp (°C): cool below the comfort band, hot above
+const THRESHOLD = 30;                  // "over" count + red ring
+const PERIOD = 2500;                   // poll interval (ms)
+$("thlabel").textContent = THRESHOLD; $("lmin").textContent = TMIN + " °C"; $("lmax").textContent = TMAX + " °C"; $("rate").textContent = PERIOD / 1000;
 
 const href = (td, kind, name, op) => (td?.[kind]?.[name]?.forms || []).find((f) => [].concat(f.op).includes(op))?.href;
 async function j(url, opt) { const r = await fetch(url, opt); if (!r.ok) throw new Error(r.status); const t = await r.text(); return t ? JSON.parse(t) : null; }
 
-// temp -> HSL: hue 210 (cool blue) down to 0 (red) across [TMIN, TMAX]
-function tempColor(t) { const f = Math.max(0, Math.min(1, (t - TMIN) / (TMAX - TMIN))); const hue = 210 - 210 * f; return `hsl(${hue} 70% 48%)`; }
+// diverging ramp read from the theme: --cool → --mid (comfort) → --hot; text flips to stay readable
+function hex(v) { const h = v.trim().replace("#", ""); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); }
+let ramp = null;
+function readRamp() { const cs = getComputedStyle(document.documentElement); ramp = ["--cool", "--mid", "--hot"].map((k) => hex(cs.getPropertyValue(k))); }
+function tempColor(t) {
+  const [c, m, h] = ramp, f = t <= MID ? Math.max(0, (t - TMIN) / (MID - TMIN)) : Math.min(1, (t - MID) / (TMAX - MID));
+  const [a, b] = t <= MID ? [c, m] : [m, h];
+  const rgb = a.map((x, i) => Math.round(x + (b[i] - x) * f));
+  const l = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+  return { bg: `rgb(${rgb.join(",")})`, fg: l > 0.6 ? "#2b2622" : "#fff" };
+}
 
-let sensors = [];   // [{title, href, cell, valEl}]
-let cellOf = {};
-
+let sensors = [];
 async function discover() {
   const all = await j("/things");
   const temps = all.filter((t) => href(t, "properties", "temperature", "readproperty"))
                    .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
-  const grid = $("grid"); grid.replaceChildren(); sensors = []; cellOf = {};
+  const grid = $("grid"); grid.replaceChildren(); sensors = [];
   for (const t of temps) {
-    const cell = document.createElement("div"); cell.className = "cell stale"; cell.style.background = "var(--line)";
-    cell.title = t.title;
-    const v = document.createElement("span"); v.textContent = "--";
-    const lab = document.createElement("small"); lab.textContent = t.title.replace(/^room1-|^building-/, "");
+    const cell = document.createElement("div"); cell.className = "cell stale"; cell.setAttribute("role", "listitem");
+    const v = document.createElement("span"); v.textContent = "–";
+    const lab = document.createElement("small"); lab.textContent = t.title.replace(/^room1-sensor$/, "room 1");
     cell.append(v, lab); grid.append(cell);
     sensors.push({ title: t.title, href: href(t, "properties", "temperature", "readproperty"), cell, valEl: v });
   }
-  $("n").textContent = temps.length; $("gcount").textContent = temps.length;
+  $("nav-n").textContent = temps.length ? ` · ${temps.length} sensors` : "";
 }
 
 async function poll() {
@@ -122,47 +139,52 @@ async function poll() {
     results.forEach((r, i) => {
       const s = sensors[i];
       if (r.status === "fulfilled" && typeof r.value === "number") {
-        const t = r.value; ok++; sum += t; lo = Math.min(lo, t); hi = Math.max(hi, t);
-        s.cell.className = "cell" + (t >= THRESHOLD ? " hot" : ""); s.cell.style.background = tempColor(t);
+        const t = r.value, c = tempColor(t); ok++; sum += t; lo = Math.min(lo, t); hi = Math.max(hi, t);
+        s.cell.className = "cell" + (t >= THRESHOLD ? " hot" : ""); s.cell.style.background = c.bg; s.cell.style.color = c.fg;
         s.valEl.textContent = t.toFixed(1); if (t >= THRESHOLD) hot++;
-      } else { s.cell.className = "cell stale"; s.cell.style.background = "var(--line)"; s.valEl.textContent = "--"; }
+        s.cell.setAttribute("aria-label", `${s.title}: ${t.toFixed(1)} °C${t >= THRESHOLD ? ", over the alarm" : ""}`);
+      } else { s.cell.className = "cell stale"; s.valEl.textContent = "–"; s.cell.setAttribute("aria-label", `${s.title}: no reading`); }
     });
-    $("avg").textContent = ok ? (sum / ok).toFixed(1) : "--";
-    $("minmax").textContent = ok ? `${lo.toFixed(1)} / ${hi.toFixed(1)}` : "--";
+    $("n").textContent = `${ok} of ${sensors.length}`;
+    $("avg").textContent = ok ? (sum / ok).toFixed(1) + " °C" : "–";
+    $("minmax").textContent = ok ? `${lo.toFixed(1)}–${hi.toFixed(1)} °C` : "–";
     $("hot").textContent = hot;
-    $("dot").className = "dot" + (ok ? " ok" : "");
-    $("conn").textContent = ok ? `live · ${ok}/${sensors.length} reporting` : "sensors unreachable";
-    if (!ok) sensors = [];   // force re-discover if everything dropped
+    $("headline").innerHTML = ok ? `<b>${ok}</b> sensors report through one gateway; ${hot ? `<b class="warn">${hot}</b> ${hot === 1 ? "is" : "are"} over ${THRESHOLD} °C.` : `none is over ${THRESHOLD} °C.`}` : "No sensor is answering yet.";
+    $("live").dataset.state = ok ? "live" : "down"; $("conn").textContent = ok ? "Live" : "Sensors unreachable"; $("banner").hidden = true;
+    if (!ok) sensors = [];
   } catch (e) {
-    sensors = []; $("dot").className = "dot"; $("conn").textContent = "gateway unreachable";
+    sensors = []; $("live").dataset.state = "down"; $("conn").textContent = "Gateway unreachable"; $("banner").hidden = false;
   }
 }
 
-// --- Raspberry Pi host stats ---
 function setBar(el, pct, warn, bad) {
   el.style.width = Math.max(0, Math.min(100, pct)) + "%";
-  el.style.background = pct >= bad ? "var(--bad)" : pct >= warn ? "hsl(38 92% 50%)" : "var(--accent)";
+  el.dataset.tone = pct >= bad ? "bad" : pct >= warn ? "warn" : "";
 }
-function fmtUptime(s) { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; }
+function fmtUptime(s) { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; }
 async function pollStats() {
   try {
     const s = await j("/stats");
     if (s.cpuPct != null) { $("cpu").textContent = s.cpuPct.toFixed(0) + " %"; setBar($("cpubar"), s.cpuPct, 60, 85); } else $("cpu").textContent = "n/a";
-    if (s.tempC != null) { $("ptemp").textContent = s.tempC.toFixed(1) + " °C"; setBar($("tempbar"), (s.tempC / 85) * 100, 65/85*100, 80/85*100); } else $("ptemp").textContent = "n/a";
-    if (s.memPct != null) { $("mem").textContent = `${s.memUsedMB}/${s.memTotalMB} MB`; setBar($("membar"), s.memPct, 70, 90); } else $("mem").textContent = "n/a";
-    $("loadup").textContent = `${s.load1 != null ? s.load1.toFixed(2) : "--"} · ${fmtUptime(s.uptimeS)}`;
-  } catch (e) { $("cpu").textContent = $("ptemp").textContent = $("mem").textContent = "--"; }
+    if (s.tempC != null) { $("ptemp").textContent = s.tempC.toFixed(1) + " °C"; setBar($("tempbar"), (s.tempC / 85) * 100, 65 / 85 * 100, 80 / 85 * 100); } else $("ptemp").textContent = "n/a";
+    if (s.memPct != null) { $("mem").textContent = `${s.memUsedMB} of ${s.memTotalMB} MB`; setBar($("membar"), s.memPct, 70, 90); } else $("mem").textContent = "n/a";
+    $("loadup").textContent = `${s.load1 != null ? s.load1.toFixed(2) : "–"} · up ${fmtUptime(s.uptimeS)}`;
+    const busy = s.cpuPct != null && s.cpuPct >= 85;
+    $("pi-h").textContent = s.cpuPct == null ? "The gateway host is running." : busy ? `The gateway host is busy: ${s.cpuPct.toFixed(0)} % CPU.` : `The gateway host is at ${s.cpuPct.toFixed(0)} % CPU.`;
+  } catch (e) { $("cpu").textContent = $("ptemp").textContent = $("mem").textContent = "–"; $("pi-h").textContent = "Can't read the gateway host."; }
 }
 
-// light/dark toggle (persists per browser; falls back silently)
-(function () {
-  try { const s = localStorage.getItem("scaleTheme"); if (s) document.documentElement.dataset.theme = s; } catch (e) {}
-  $("theme").addEventListener("click", () => {
-    const cur = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = cur; try { localStorage.setItem("scaleTheme", cur); } catch (e) {}
-  });
-})();
+// colour theme: shared with the room dashboard; "Auto" follows the system light/dark setting
+$("theme").value = document.documentElement.dataset.theme || "";
+$("theme").addEventListener("change", () => {
+  const v = $("theme").value;
+  if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme;
+  try { v ? localStorage.setItem("gwTheme", v) : localStorage.removeItem("gwTheme"); } catch (e) {}
+  readRamp(); poll();
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readRamp(); poll(); });
 
+readRamp();
 poll(); setInterval(poll, PERIOD);
 pollStats(); setInterval(pollStats, 2000);
 </script>

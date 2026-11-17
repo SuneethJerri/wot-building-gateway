@@ -3,132 +3,651 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Building Gateway</title>
+<title>Room 1 · Building Gateway</title>
+<link rel="stylesheet" href="/theme.css">
+<script>try { const t = localStorage.getItem("gwTheme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mute:#6b7685; --line:#e2e6eb; --accent:#2563eb; --ok:#16a34a; --bad:#dc2626; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1a2029; --ink:#e7ebf0; --mute:#8d99a8; --line:#2a323d; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; } }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui, sans-serif; }
-  main { max-width:880px; margin:0 auto; padding:24px 16px; }
-  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
-  h1 { font-size:20px; margin:0; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:12px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
-  .card h2 { font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin:0 0 8px; }
-  .big { font-size:40px; font-weight:600; line-height:1.1; }
-  .unit { font-size:18px; color:var(--mute); margin-left:2px; }
-  .mute { color:var(--mute); font-size:13px; }
-  .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:13px; font-weight:600; border:1px solid var(--line); }
-  .pill.on { color:var(--ok); border-color:var(--ok); }
-  .pill.off, .pill.bad { color:var(--mute); }
-  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--bad); margin-right:6px; }
-  .dot.ok { background:var(--ok); }
-  .row { display:flex; gap:8px; margin-top:12px; }
-  button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
-  button:hover { border-color:var(--accent); }
-  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  svg { width:100%; height:48px; display:block; margin-top:8px; }
-  svg polyline { fill:none; stroke:var(--accent); stroke-width:2; }
-  ul { list-style:none; margin:0; padding:0; }
-  li { padding:6px 0; border-top:1px solid var(--line); font-size:14px; }
-  li:first-child { border-top:0; }
-  .wide { grid-column:1 / -1; }
-  .alert { color:var(--bad); font-weight:600; }
+  /* layout */
+  .page { max-width:1560px; margin:0 auto; padding:20px 32px 48px; display:grid; grid-template-columns:minmax(0, 7fr) minmax(0, 5fr); gap:24px; align-items:start; }
+  .col { display:flex; flex-direction:column; gap:12px; min-width:0; }
+  .lower { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:24px; align-items:start; }
+  @media (max-width:960px) { .page { grid-template-columns:minmax(0, 1fr); } }
+  @media (max-width:760px) { .page { padding-left:16px; padding-right:16px; } .lower { grid-template-columns:minmax(0, 1fr); } }
+
+  /* verdict */
+  .verdict-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+  h1 { font-size:clamp(28px, 1.6vw + 14px, 42px); line-height:1.12; font-weight:800; letter-spacing:-.02em; margin:0 0 8px; text-wrap:balance; }
+  h1 b, .sub b { color:var(--teal-ink); font-weight:800; }
+  h1 b.worse, .sub b.worse { color:var(--red); }
+  .sub { font-size:clamp(17px, .5vw + 14px, 21px); margin:0; color:var(--ink-2); text-wrap:pretty; }
+  .sub + .sub { margin-top:4px; font-size:16px; color:var(--mute); }
+  .tiles { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:18px 0 16px; }
+  .tile { background:var(--ground); border-radius:16px; padding:12px 16px; }
+  .tile strong { display:block; font-size:26px; font-weight:800; line-height:1.2; letter-spacing:-.01em; }
+  .tile span { font-size:14px; color:var(--mute); }
+  @media (max-width:560px) { .tiles { grid-template-columns:minmax(0, 1fr); } }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 20px; font-size:14px; color:var(--mute); align-items:center; }
+  .legend i { display:inline-block; width:22px; height:3px; border-radius:2px; background:var(--teal); vertical-align:middle; margin-right:6px; }
+  .legend svg.pl { display:inline-block; vertical-align:middle; margin-right:6px; }
+  .legend i.sw { width:14px; height:14px; border-radius:4px; background:var(--p10); }
+  .chart { position:relative; margin-top:6px; }
+  #chart { width:100%; height:auto; display:block; touch-action:none; overflow:visible; }
+  @media (max-width:560px) { .chart { overflow-x:auto; } #chart { min-width:600px; } }
+  #chart text { font-family:"Figtree", system-ui, sans-serif; font-size:13px; fill:var(--mute); }
+  #chart .lbl { font-weight:700; fill:var(--ink); }
+  #chart .saved { font-weight:800; fill:var(--teal-ink); }
+  .tip { position:absolute; top:0; pointer-events:none; background:var(--card); border-radius:12px; padding:8px 12px; font-size:13px; line-height:1.4; box-shadow:var(--shadow); white-space:nowrap; }
+  .tip b { font-weight:700; }
+  .key { list-style:none; display:flex; flex-wrap:wrap; gap:6px 18px; padding:0; margin:8px 0 0; font-size:14px; color:var(--ink-2); }
+  .key li { display:flex; align-items:baseline; gap:6px; }
+  .key b { display:inline-grid; place-items:center; flex:none; width:20px; height:20px; border-radius:50%; background:var(--ink); color:var(--card); font-size:12px; }
+  .key [data-tone="warn"] b { background:var(--amber-ink); }
+  .key [data-tone="bad"] b { background:var(--red); }
+  .foot { font-size:14px; color:var(--mute); margin:12px 0 0; max-width:75ch; }
+
+  /* devices */
+  .sec-title { font-size:22px; font-weight:800; margin:4px 0 0; letter-spacing:-.01em; text-wrap:balance; }
+  .sec-sub { font-size:15px; color:var(--mute); margin:2px 0 4px; }
+  .dev { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; column-gap:20px; padding:16px 24px; }
+  .dev-top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .tt { font:600 13px ui-monospace, "SF Mono", "Cascadia Mono", monospace; background:var(--ground); padding:3px 9px; border-radius:8px; }
+  .chip { font-size:13px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--ground); color:var(--mute); }
+  .chip[data-tone="warn"] { background:var(--amber-bg); color:var(--amber-ink); }
+  .chip[data-tone="bad"] { background:var(--red-bg); color:var(--red); }
+  .chip[data-tone="good"] { background:var(--good-bg); color:var(--teal-ink); }
+  .dev h3 { font-size:clamp(18px, .4vw + 15px, 22px); font-weight:700; margin:6px 0 1px; letter-spacing:-.01em; text-wrap:balance; }
+  .why { font-size:14px; color:var(--mute); margin:0; text-wrap:pretty; }
+  .err { font-size:14px; color:var(--red); font-weight:600; margin:6px 0 0; }
+  .dev-ctl { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .switch { appearance:none; width:62px; height:36px; border-radius:999px; border:0; background:var(--switch-off); position:relative; margin:0; padding:0; cursor:pointer; transition:background-color 160ms ease, transform 160ms var(--ease-out); }
+  .switch span { position:absolute; top:4px; left:4px; width:28px; height:28px; border-radius:50%; background:#fff; box-shadow:0 1px 3px #0004; transition:transform 200ms var(--ease-out); }
+  .switch[aria-checked="true"] { background:var(--act); }
+  .switch[aria-checked="true"] span { transform:translateX(26px); }
+  .switch:active { transform:scale(.97); }
+  .switch:disabled { opacity:.45; cursor:not-allowed; }
+  .switch[aria-busy="true"] { opacity:.75; }
+  .gauge { width:150px; }
+  .gauge .track { position:relative; height:10px; border-radius:999px; background:var(--ground); }
+  .gauge .band { position:absolute; top:0; bottom:0; border-radius:999px; background:var(--band); }
+  .gauge .dot { position:absolute; top:50%; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:var(--teal); border:3px solid var(--card); box-shadow:0 1px 3px #0004; transition:left 250ms var(--ease-out), background-color 250ms ease; }
+  .gauge .dot.hot { background:var(--red); }
+  .gauge .ticks { display:flex; justify-content:space-between; font-size:12px; color:var(--mute); margin-top:4px; }
+  .gauge .ticks span:nth-child(2) { color:var(--teal-ink); font-weight:700; }
+
+  /* events + gateway */
+  .events h2, .gw h2 { font-size:clamp(18px, .4vw + 15px, 22px); font-weight:700; line-height:1.3; margin:0; letter-spacing:-.01em; text-wrap:balance; }
+  .events h2 b { color:var(--ink); }
+  .events h2 b.warn { color:var(--amber-ink); }
+  .events h2 b.bad { color:var(--red); }
+  .events ol { list-style:none; margin:12px 0 0; padding:0; }
+  .events li { display:grid; grid-template-columns:10px minmax(0, 1fr) auto; gap:12px; align-items:baseline; padding:8px 12px; border-radius:12px; font-size:15px; color:var(--ink-2);
+    transition:opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+  @starting-style { .events li { opacity:0; transform:translateY(-4px); } }
+  .events li i { width:9px; height:9px; border-radius:50%; background:var(--plain); align-self:center; }
+  .events li[data-tone="warn"] { background:var(--amber-bg); } .events li[data-tone="warn"] i { background:var(--amber-ink); }
+  .events li[data-tone="bad"] { background:var(--red-bg); } .events li[data-tone="bad"] i { background:var(--red); }
+  .events li[data-tone="good"] i { background:var(--teal); }
+  .events time { color:var(--mute); font-size:14px; }
+  .empty { color:var(--mute); font-size:15px; margin:10px 0 0; }
+  .gw p { margin:6px 0 0; font-size:15px; color:var(--mute); }
+
+  /* lower cards */
+  .lower h2, #days-h { font-size:20px; font-weight:800; margin:0 0 4px; letter-spacing:-.01em; }
+  .lower .hint, #days-hint { font-size:14px; color:var(--mute); margin:0 0 12px; }
+  .table-wrap { overflow-x:auto; margin:0 -4px; padding:0 4px; }
+  table { width:100%; border-collapse:collapse; font-size:15px; }
+  th, td { text-align:right; padding:8px 4px; border-top:1px solid var(--line); white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--mute); font-weight:600; font-size:13px; border-top:0; }
+  td small { color:var(--mute); font-size:13px; }
+  .good { color:var(--teal-ink); font-weight:700; }
+  .bad-num { color:var(--red); font-weight:700; }
+  form { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px 14px; }
+  label { font-size:14px; font-weight:600; color:var(--ink-2); display:grid; grid-template-rows:1fr auto; align-items:end; gap:4px; }
+  input { font:500 16px "Figtree", system-ui, sans-serif; color:var(--ink); background:var(--card); border:2px solid var(--edge); border-radius:12px; padding:8px 12px; width:100%; transition:border-color 160ms ease; }
+  input:focus-visible { outline:none; border-color:var(--act); }
+  input[aria-invalid="true"] { border-color:var(--red); }
+  .actions { grid-column:1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .msg { font-size:14px; font-weight:600; }
+  .msg.bad { color:var(--red); } .msg.ok { color:var(--teal-ink); }
+  .things ul { list-style:none; margin:0; padding:0; }
+  .things li { padding:8px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink-2); }
+  .things li:first-child { border-top:0; }
+  .things li .tt { margin-right:8px; }
+  details { margin-top:10px; font-size:14px; color:var(--mute); }
+  summary { cursor:pointer; font-weight:600; color:var(--ink-2); }
+  details p { margin:8px 0 0; line-height:1.7; }
+
+  @media (prefers-reduced-motion:reduce) {
+    .switch span, .gauge .dot { transition:none; }
+    .btn:active, .switch:active { transform:none; }
+    @starting-style { .events li { transform:none; } }
+  }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Building Gateway</h1>
-    <span class="mute"><a href="/scale" style="color:var(--accent);text-decoration:none">scale view →</a> &nbsp; <span class="dot" id="dot"></span><span id="conn">connecting</span></span>
-  </header>
-  <div class="grid">
-    <section class="card">
-      <h2>Temperature</h2>
-      <div><span class="big" id="temp">--</span><span class="unit">°C</span></div>
-      <svg viewBox="0 0 200 48" preserveAspectRatio="none" aria-label="Temperature, last 2 minutes"><polyline id="spark" points=""/></svg>
-      <div class="mute">Humidity <span id="hum">--</span> %</div>
+<header class="shell">
+  <a class="brand" href="/"><span class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/></svg></span>Building Gateway</a>
+  <nav aria-label="Views">
+    <a href="/" aria-current="page">Room 1</a>
+    <a href="/scale">Scale<span id="nav-sim"></span></a>
+    <a href="#things">Things</a>
+  </nav>
+  <div class="status">
+    <span class="live" id="live" data-state="connecting"><i></i><span id="conn">Connecting</span></span>
+    <span class="clock" id="clock"></span>
+    <label class="theme">Theme
+      <select id="theme"><option value="">Auto</option><option value="warm">Warm</option><option value="night">Night</option><option value="ocean">Ocean</option><option value="lilac">Lilac</option></select>
+    </label>
+  </div>
+</header>
+<div class="banner" id="banner" role="alert" hidden>Can't reach the gateway.<span>Check that it is running (./lab.sh status). On the phone hotspot, ping the laptop from the Pi once to wake the network.</span></div>
+
+<main class="page">
+  <div class="col">
+    <section class="card verdict" aria-labelledby="verdict">
+      <div class="verdict-head">
+        <h1 id="verdict">Waiting for the energy manager.</h1>
+        <a class="btn secondary small" href="#settings">Settings</a>
+      </div>
+      <p class="sub" id="comfort">It starts with the lab: <b>./lab.sh level1</b>, or <b>python3 app/app.py</b>.</p>
+      <p class="sub" id="yesterday" hidden></p>
+      <div class="tiles">
+        <div class="tile"><strong id="t-cost">–</strong><span>spent so far with the manager</span></div>
+        <div class="tile"><strong id="t-plain">–</strong><span>with a plain thermostat</span></div>
+        <div class="tile"><strong id="t-peak">–</strong><span id="t-peak-l">peak load</span></div>
+      </div>
+      <div class="legend" aria-hidden="true"><span><i></i>Energy cost manager</span><span><svg class="pl" width="22" height="4" viewBox="0 0 22 4"><line x1="0" y1="2" x2="22" y2="2" style="stroke:var(--plain)" stroke-width="3" stroke-dasharray="6 4"/></svg>Plain thermostat</span><span><i class="sw"></i>Darker = pricier</span></div>
+      <div class="chart">
+        <svg id="chart" viewBox="0 0 760 300" role="img" aria-label="Cost so far today"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <ol class="key" id="key" aria-label="Decisions on the chart"></ol>
+      <p class="foot">The plain thermostat runs the same fan rule on the same temperatures, all day, with the plug always on. Prices and device wattages are example values.</p>
     </section>
-    <section class="card">
-      <h2>Fan</h2>
-      <span class="pill off" id="fan">--</span>
-      <div class="row"><button data-thing="room1-fan" data-act="switchOn">Switch on</button><button data-thing="room1-fan" data-act="switchOff">Switch off</button></div>
+    <section class="card" aria-labelledby="days-h">
+      <h2 id="days-h">Last 7 days</h2>
+      <p class="hint" id="days-hint">Each day closes at midnight.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Day</th><th scope="col">Cost</th><th scope="col">Plain</th><th scope="col">Saved</th><th scope="col">Too hot</th><th scope="col">Faults</th></tr></thead>
+        <tbody id="days"></tbody>
+      </table></div>
+      <p class="empty" id="days-empty">No full day yet. At 60× speed a day takes 24 minutes.</p>
     </section>
-    <section class="card">
-      <h2>Smart plug</h2>
-      <span class="pill off" id="plug">--</span> <span class="mute"><span id="power">--</span> W</span>
-      <div class="row"><button data-thing="room1-plug" data-act="switchOn">Switch on</button><button data-thing="room1-plug" data-act="switchOff">Switch off</button></div>
+  </div>
+
+  <div class="col">
+    <section aria-labelledby="dev-h" class="col">
+      <div>
+        <h2 class="sec-title" id="dev-h">Every device is reached by its Thing title.</h2>
+        <p class="sec-sub">Found in the Thing Directory. The app never sees MQTT, CoAP or HTTP.</p>
+      </div>
+      <article class="card dev" id="dev-fan">
+        <div>
+          <div class="dev-top"><code class="tt">room1-fan</code><span class="chip" data-role="chip">–</span></div>
+          <h3 data-role="say">Looking for the fan.</h3>
+          <p class="why" data-role="why"></p>
+          <p class="err" data-role="err" role="alert" hidden></p>
+        </div>
+        <div class="dev-ctl">
+          <button class="switch" role="switch" aria-checked="false" aria-label="room1-fan power" data-thing="room1-fan" disabled><span></span></button>
+          <button class="btn secondary small" data-role="resume" hidden>Resume auto</button>
+        </div>
+      </article>
+      <article class="card dev" id="dev-plug">
+        <div>
+          <div class="dev-top"><code class="tt">room1-plug</code><span class="chip" data-role="chip">–</span></div>
+          <h3 data-role="say">Looking for the plug.</h3>
+          <p class="why" data-role="why"></p>
+          <p class="err" data-role="err" role="alert" hidden></p>
+        </div>
+        <div class="dev-ctl">
+          <button class="switch" role="switch" aria-checked="false" aria-label="room1-plug power" data-thing="room1-plug" disabled><span></span></button>
+          <button class="btn secondary small" data-role="resume" hidden>Resume auto</button>
+        </div>
+      </article>
+      <article class="card dev" id="dev-sensor">
+        <div>
+          <div class="dev-top"><code class="tt">room1-sensor</code><span class="chip" data-role="chip">–</span></div>
+          <h3 data-role="say">Looking for the sensor.</h3>
+          <p class="why" data-role="why"></p>
+        </div>
+        <div class="gauge" aria-hidden="true">
+          <div class="track"><div class="band" id="g-band"></div><div class="dot" id="g-dot" style="left:50%"></div></div>
+          <div class="ticks"><span>20 °C</span><span id="g-label">26–28 °C</span><span>36 °C</span></div>
+        </div>
+      </article>
     </section>
-    <section class="card wide">
-      <h2>Alerts</h2>
-      <ul id="alerts"><li class="mute">No overheat events yet</li></ul>
+
+    <section class="card events" aria-labelledby="ev-h">
+      <h2 id="ev-h">Nothing has happened yet today.</h2>
+      <ol id="events" aria-live="polite" aria-label="Today's decisions"></ol>
+      <p class="empty" id="ev-empty">Decisions appear here as the day runs: the plug going off, the fan coming on, anything switched by hand.</p>
     </section>
-    <section class="card wide">
-      <h2>Things in the Directory</h2>
-      <ul id="things"></ul>
+
+    <section class="card gw" aria-labelledby="gw-h">
+      <h2 id="gw-h">Reads through the gateway: waiting.</h2>
+      <p id="gw-sub"></p>
+    </section>
+  </div>
+
+  <div class="lower">
+
+    <section class="card" id="settings" aria-labelledby="set-h">
+      <h2 id="set-h">Settings</h2>
+      <p class="hint">Changes apply on the next reading, about two seconds.</p>
+      <form id="form" novalidate>
+        <label>Office opens<input name="open" type="time" step="900" required></label>
+        <label>Office closes<input name="close" type="time" step="900" required></label>
+        <label>Fan on at (°C)<input name="hi" type="number" step="0.5" min="15" max="40" inputmode="decimal" required></label>
+        <label>Fan off at (°C)<input name="lo" type="number" step="0.5" min="10" max="39" inputmode="decimal" required></label>
+        <label>After hours, wait (°C more)<input name="setback" type="number" step="0.5" min="0" max="10" inputmode="decimal" required></label>
+        <label>Power cap (W)<input name="cap" type="number" step="10" min="10" max="5000" inputmode="numeric" required></label>
+        <div class="actions">
+          <button class="btn" type="submit">Save settings</button>
+          <button class="btn secondary" type="button" id="reset">Undo changes</button>
+          <span class="msg" id="setmsg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="card things" id="things" aria-labelledby="th-h">
+      <h2 id="th-h">Things in the Directory</h2>
+      <p class="hint" id="th-hint">Every device and the energy manager describe themselves here.</p>
+      <ul id="th-list"></ul>
+      <details id="th-more" hidden><summary id="th-sum"></summary><p id="th-all"></p></details>
     </section>
   </div>
 </main>
+
 <script>
 // Everything is looked up from the Thing Descriptions in the Directory, like app/app.py:
-// no device addresses or protocols here, only titles.
+// no device addresses or protocols here, only Thing titles and the forms their TDs carry.
 const $ = (id) => document.getElementById(id);
-const hist = [];
-let things = {};
-let watching = "";
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let things = {}, summary = null, overheats = [], watching = "", settingsDirty = false;
 
 const href = (td, kind, name, op) => (td?.[kind]?.[name]?.forms || []).find((f) => [].concat(f.op).includes(op))?.href;
 async function j(url, opt) {
+  if (!url) throw new Error("no form");
   const r = await fetch(url, opt);
   if (!r.ok) throw new Error(r.status);
   const t = await r.text();
   return t ? JSON.parse(t) : null;
 }
+const rupees = (v) => "₹" + v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const hhmm = (h) => `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor((h % 1) * 60 + 1e-6)).padStart(2, "0")}`;
+const fmtHour = (h) => hhmm(h);
+const toHours = (v) => { const [a, b] = v.split(":").map(Number); return a + b / 60; };
 
-async function discover() {
-  things = {};
-  const all = await j("/things");
-  all.forEach((t) => (things[t.title] = t));
-  $("things").replaceChildren(...all.map((t) => {
-    const li = document.createElement("li");
-    const parts = [...Object.keys(t.properties || {}), ...Object.keys(t.actions || {}), ...Object.keys(t.events || {})];
-    li.textContent = `${t.title}: ${parts.join(", ")}`;
-    return li;
-  }));
-  if (!all.length) $("things").innerHTML = '<li class="mute">Nothing registered yet</li>';
+// Signature motion: numbers count to each new reading (250 ms, strong ease-out); instant with reduced motion.
+function tween(el, to, fmt) {
+  const from = el._v ?? to;
+  el._v = to;
+  if (reduceMotion || from === to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  cancelAnimationFrame(el._raf);
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / 250), e = 1 - Math.pow(1 - k, 4);
+    el.textContent = fmt(from + (to - from) * e);
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+function num(el, value, fmt) { // a <b> inside a sentence that keeps its own tween state
+  if (!el) return; tween(el, value, fmt);
 }
 
-function pill(el, on) { el.textContent = on ? "On" : "Off"; el.className = "pill " + (on ? "on" : "off"); }
-function gone(el) { el.textContent = "offline"; el.className = "pill bad"; }
+async function discover() {
+  const all = await j("/things");
+  things = {};
+  all.forEach((t) => (things[t.title] = t));
+  const room = all.filter((t) => !/^sim\d+$/.test(t.title)).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+  const sims = all.filter((t) => /^sim\d+$/.test(t.title)).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+  const nTemp = all.filter((t) => href(t, "properties", "temperature", "readproperty")).length;
+  $("nav-sim").textContent = nTemp ? ` · ${nTemp} sensors` : "";
+  $("th-hint").textContent = `${all.length} Things registered. Every device and the energy manager describe themselves here.`;
+  const describe = (t) => {
+    const parts = [...Object.keys(t.properties || {}), ...Object.keys(t.actions || {}).map((a) => a + "()"), ...Object.keys(t.events || {}).map((e) => e + " event")];
+    return parts.join(" · ");
+  };
+  $("th-list").replaceChildren(...room.map((t) => {
+    const li = document.createElement("li"), c = document.createElement("code");
+    c.className = "tt"; c.textContent = t.title;
+    li.append(c, describe(t) || "no affordances");
+    return li;
+  }));
+  if (sims.length) {
+    const li = document.createElement("li"), a = document.createElement("a");
+    a.href = "/scale"; a.textContent = `+ ${sims.length} simulated sensors on the Scale view`;
+    li.append(a); $("th-list").append(li);
+  }
+  $("th-more").hidden = !all.length;
+  $("th-sum").textContent = `All ${all.length} titles`;
+  $("th-all").textContent = [...room, ...sims].map((t) => t.title).join(", ");
+}
 
+function setDevice(id, { chip, tone, say, why, on, disabled, resume }) {
+  const card = $(id), c = card.querySelector('[data-role="chip"]');
+  c.textContent = chip; if (tone) c.dataset.tone = tone; else delete c.dataset.tone;
+  card.querySelector('[data-role="say"]').textContent = say;
+  card.querySelector('[data-role="why"]').textContent = why || "";
+  const sw = card.querySelector(".switch");
+  if (sw && sw.getAttribute("aria-busy") !== "true") { sw.setAttribute("aria-checked", String(!!on)); sw.disabled = !!disabled; }
+  const r = card.querySelector('[data-role="resume"]'); if (r) r.hidden = !resume;
+}
+
+function renderDevices(t, h, f, p, s) {
+  const st = s || {}, set = st.settings || {}, manualFan = st.fan_manual_min > 0, manualPlug = st.plug_manual_min > 0;
+  if (f.status === "fulfilled") {
+    const on = f.value.on;
+    let chip = "Auto", tone = "", why = st.occupied === false
+      ? `After hours it waits for ${(set.hi ?? 28) + (set.setback ?? 4)} °C to save energy.`
+      : `Comes on at ${set.hi ?? 28} °C and goes off at ${set.lo ?? 26} °C.`;
+    if (!s) { chip = "No automation"; why = "The energy manager isn't running, so nothing switches it automatically."; }
+    if (manualFan) { chip = `Manual · ${st.fan_manual_min} min`; tone = "warn"; why = `Switched by hand. Automation takes over again in ${st.fan_manual_min} min.`; }
+    if (st.fault) { chip = "Fault"; tone = "bad"; why = "It has run without cooling the room. Check the fan, or close the window."; }
+    setDevice("dev-fan", { chip, tone, say: on ? "The fan is on, cooling the room." : "The fan is off.", why, on, resume: manualFan });
+  } else setDevice("dev-fan", { chip: "Offline", tone: "bad", say: "Can't reach the fan.", why: "The gateway has no answer from room1-fan.", on: false, disabled: true });
+
+  if (p.status === "fulfilled") {
+    const on = p.value.on, cap = set.cap ?? 100;
+    let chip = "Auto", tone = "", say = on ? `The plug is on, drawing ${Math.round(p.value.power)} W.` : "The plug is off.",
+        why = "It goes off after hours and when the fan needs the power.";
+    if (!s) { chip = "No automation"; why = "The energy manager isn't running."; }
+    if (!on && st.plug_reason === "cap") { chip = "Shed by power cap"; tone = "warn"; say = `The plug is off to stay under ${cap} W.`; why = `With the fan running, both together would pass ${cap} W. It comes back when the fan stops.`; }
+    if (!on && st.plug_reason === "schedule") { chip = "Off by schedule"; say = "The plug is off: the office is closed."; why = `It comes back on at ${fmtHour(set.open ?? 9)}.`; }
+    if (manualPlug) { chip = `Manual · ${st.plug_manual_min} min`; tone = "warn"; why = `Switched by hand. Automation takes over again in ${st.plug_manual_min} min.`; }
+    setDevice("dev-plug", { chip, tone, say, why, on, resume: manualPlug });
+  } else setDevice("dev-plug", { chip: "Offline", tone: "bad", say: "Can't reach the plug.", why: "The gateway has no answer from room1-plug.", on: false, disabled: true });
+
+  if (t.status === "fulfilled") {
+    const temp = t.value, hum = h.status === "fulfilled" ? h.value : null, lo = set.lo ?? 26, hi = set.hi ?? 28;
+    const hot = temp > (st.limit ?? hi);
+    setDevice("dev-sensor", { chip: hot ? "Too warm" : "Reading", tone: hot ? "warn" : "good",
+      say: hum == null ? `It's ${temp.toFixed(1)} °C in here.` : `It's ${temp.toFixed(1)} °C and ${Math.round(hum)} % humid in here.`,
+      why: `Comfort band ${lo}–${hi} °C in office hours; after hours the fan waits for ${hi + (set.setback ?? 4)} °C.` });
+    const pos = (v) => Math.max(0, Math.min(100, ((v - 20) / 16) * 100));
+    $("g-band").style.left = pos(lo) + "%"; $("g-band").style.width = (pos(hi) - pos(lo)) + "%";
+    $("g-dot").style.left = pos(temp) + "%"; $("g-dot").classList.toggle("hot", hot);
+    $("g-label").textContent = `${lo}–${hi}\u00a0°C`;
+  } else setDevice("dev-sensor", { chip: "Offline", tone: "bad", say: "Can't reach the sensor.", why: "The gateway has no answer from room1-sensor." });
+}
+
+function renderVerdict(s) {
+  if (!s) {
+    $("verdict").textContent = "The energy manager isn't in the Thing Directory yet."; delete $("verdict").dataset.mode;
+    $("comfort").innerHTML = "If it is running it registers within 10 seconds; otherwise start it with <b>./lab.sh level1</b>. The devices still work.";
+    ["t-cost", "t-plain", "t-peak"].forEach((id) => { $(id).textContent = "–"; $(id)._v = undefined; });
+    $("key").replaceChildren(); $("chart").replaceChildren(); $("yesterday").hidden = true;
+    document.querySelectorAll(".chart, .legend, .foot").forEach((n) => (n.hidden = true));
+    form.querySelectorAll("input, button").forEach((n) => (n.disabled = true));
+    return;
+  }
+  if (document.querySelector(".chart").hidden) {
+    document.querySelectorAll(".chart, .legend, .foot").forEach((n) => (n.hidden = false));
+    form.querySelectorAll("input, button").forEach((n) => (n.disabled = false));
+  }
+  const saved = s.plain_cost - s.cost, early = s.plain_cost < 0.5;
+  const mode = early ? "early" : saved >= 0 ? "saved" : "worse", v = $("verdict");
+  if (v.dataset.mode !== mode) { // rebuild only when the sentence changes form, so its numbers keep counting
+    v.dataset.mode = mode;
+    v.innerHTML = { early: `Room 1 has spent <b data-n="a"></b> so far today.`,
+                    saved: `You saved <b data-n="a"></b> today, <b data-n="b"></b> less than a plain thermostat.`,
+                    worse: `Today the manager cost <b class="worse" data-n="a"></b> more than a plain thermostat.` }[mode];
+  }
+  num(v.querySelector('[data-n="a"]'), early ? s.cost : Math.abs(saved), rupees);
+  if (mode === "saved") num(v.querySelector('[data-n="b"]'), (100 * saved) / s.plain_cost, (x) => Math.round(x) + "%");
+  const mh = Math.round(s.hot_min), ph = Math.round(s.plain_hot_min ?? s.hot_min);
+  $("comfort").innerHTML = early
+    ? `Too early to compare: a plain thermostat would have spent ${rupees(s.plain_cost)} by now.`
+    : mh <= ph
+      ? (mh === ph ? `Same comfort: too hot for <b>${mh} min</b>, the same as a plain thermostat.`
+                   : `More comfortable too: too hot for <b>${mh} min</b>, against ${ph} min with a plain thermostat.`)
+      : `Comfort cost: too hot for <b class="worse">${mh} min</b>, ${mh - ph} min more than a plain thermostat.`;
+  const y = s.yesterday;
+  $("yesterday").hidden = !(early && y);
+  if (early && y) $("yesterday").textContent = `Yesterday${y.partial ? " (partial day)" : ""}: ${rupees(y.cost)} against ${rupees(y.plain_cost)} with a plain thermostat${y.plain_cost > 0.5 ? `, ${Math.round(100 * (1 - y.cost / y.plain_cost))}% saved` : ""}.`;
+  tween($("t-cost"), s.cost, rupees);
+  tween($("t-plain"), s.plain_cost, rupees);
+  tween($("t-peak"), s.peak_w, (v) => Math.round(v) + " W");
+  $("t-peak-l").textContent = s.plain_peak_w != null ? `peak load · plain thermostat ${s.plain_peak_w} W` : "peak load";
+  drawChart(s);
+}
+
+// --- the cost race: manager vs plain thermostat over the day, price periods behind, decisions numbered ---
+const NS = "http://www.w3.org/2000/svg", H = 300, L = 46, R = 14, T = 34, B = 62;
+let W = 760; // narrower drawing area when the chart renders small, so its text stays >= 12px on screen
+const X = (h) => L + (h / 24) * (W - L - R);
+let Y = (c) => c, hoverX = null;
+function el(tag, attrs, text) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+// rare decisions get a number and a key line; frequent ones (the plug following the fan) are just ticks
+const NUMBERED = { fault: "bad", manual: "warn", gateway: "", resume: "", open: "", schedule: "", shed: "warn" }, TICKED = { shed: "warn", restore: "" };
+const TONE_FILL = { bad: "var(--red)", warn: "var(--amber-ink)", "": "var(--plain-ink)" };
+const halo = "paint-order:stroke;stroke:var(--halo);stroke-width:5px;stroke-linejoin:round";
+
+function drawChart(s) {
+  const pts = s.series || [], svg = $("chart"), kids = [];
+  const rw = svg.getBoundingClientRect().width;
+  W = rw && rw < 640 ? 520 : 760; svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const top = Math.max(0.5, ...pts.map((p) => Math.max(p[1], p[2])));
+  const raw = top / 4, mag = 10 ** Math.floor(Math.log10(raw)); // nice 1-2-2.5-5 step for any amount, at most 4 gaps
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((st) => st >= raw), max = Math.ceil(top / step - 1e-9) * step;
+  Y = (c) => T + (1 - c / max) * (H - T - B);
+  const prices = s.tariff.map((t) => t[2]), pmin = Math.min(...prices), pmax = Math.max(...prices);
+  for (const [a, b, p] of s.tariff) {
+    const shade = p === pmax ? "var(--p10)" : p === pmin ? "var(--p6)" : "var(--p8)";
+    kids.push(el("rect", { x: X(a), y: T, width: X(b) - X(a), height: H - T - B, style: `fill:${shade}` }));
+    if (X(b) - X(a) > 44) kids.push(el("text", { x: X(a) + 6, y: T + 16 }, `₹${p}/kWh`));
+  }
+  const set = s.settings || { open: 9, close: 18 };
+  kids.push(el("path", { d: `M${X(set.open)},${T - 6} v-6 H${X(set.close)} v6`, fill: "none", style: "stroke:var(--mute)", "stroke-width": 1.2 }));
+  kids.push(el("text", { x: (X(set.open) + X(set.close)) / 2, y: T - 16, "text-anchor": "middle" }, `Office hours ${fmtHour(set.open)}–${fmtHour(set.close)}`));
+  for (let k = 0; k * step <= max + 1e-9; k++) {
+    const c = k * step;
+    kids.push(el("line", { x1: L, x2: W - R, y1: Y(c), y2: Y(c), style: "stroke:var(--grid)", "stroke-dasharray": c ? "3 4" : "" }));
+    kids.push(el("text", { x: L - 8, y: Y(c) + 4, "text-anchor": "end" }, "₹" + (step < 1 ? c.toFixed(2).replace(/0$/, "") : c.toLocaleString("en-IN", { maximumFractionDigits: 1 }))));
+  }
+  const nowX = pts.length > 1 ? X(pts[pts.length - 1][0]) : -999;
+  for (const h of [0, 6, 12, 18, 24]) if (Math.abs(X(h) - nowX) > 48)
+    kids.push(el("text", { x: X(h), y: H - B + 20, "text-anchor": h === 0 ? "start" : h === 24 ? "end" : "middle" }, `${String(h).padStart(2, "0")}:00`));
+  if (pts.length > 1) {
+    const plainPath = pts.map((p) => `${X(p[0])},${Y(p[2])}`), mgrPath = pts.map((p) => `${X(p[0])},${Y(p[1])}`);
+    kids.push(el("polygon", { points: [...plainPath, ...mgrPath.slice().reverse()].join(" "), style: "fill:var(--teal-wash)" }));
+    kids.push(el("polyline", { points: plainPath.join(" "), fill: "none", style: "stroke:var(--plain)", "stroke-width": 2.5, "stroke-dasharray": "7 5", "stroke-linejoin": "round" }));
+    kids.push(el("polyline", { points: mgrPath.join(" "), fill: "none", style: "stroke:var(--teal)", "stroke-width": 3, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    const last = pts[pts.length - 1], nx = X(last[0]), ym = Y(last[1]), yp = Y(last[2]);
+    kids.push(el("line", { x1: nx, x2: nx, y1: T, y2: H - B, style: "stroke:var(--ink)", "stroke-width": 1.2 }));
+    kids.push(el("text", { x: nx, y: H - B + 20, "text-anchor": "middle", class: "lbl", style: halo }, `now ${s.clock}`));
+    kids.push(el("circle", { cx: nx, cy: yp, r: 5, style: "fill:var(--card);stroke:var(--plain-ink)", "stroke-width": 2 }));
+    kids.push(el("circle", { cx: nx, cy: ym, r: 5, style: "fill:var(--teal);stroke:var(--card)", "stroke-width": 2 }));
+    const right = nx + 190 < W - R, ax = right ? nx + 12 : nx - 12, anchor = right ? "start" : "end"; // labels stay inside the plot
+    const stack = [{ y: yp, text: `${rupees(last[2])} plain thermostat`, style: halo },
+                   { y: ym, text: `${rupees(last[1])} with the manager`, style: `fill:var(--teal-ink);${halo}` }].sort((a, b) => a.y - b.y);
+    let y0 = Math.max(T + 30, stack[0].y + 4), y1 = Math.max(y0 + 18, stack[1].y + 4); // higher line's label first, 18px apart
+    if (y1 > H - B - 6) { y1 = H - B - 6; y0 = Math.min(y0, y1 - 18); }
+    kids.push(el("text", { x: ax, y: y0, "text-anchor": anchor, class: "lbl", style: stack[0].style }, stack[0].text));
+    kids.push(el("text", { x: ax, y: y1, "text-anchor": anchor, class: "lbl", style: stack[1].style }, stack[1].text));
+    const saved = last[2] - last[1];
+    if (saved > 0.05 && ym - yp > 24) { // the bracket spans the real gap; its label only where the stack leaves room
+      kids.push(el("line", { x1: nx + (right ? 6 : -6), x2: nx + (right ? 6 : -6), y1: yp + 8, y2: ym - 8, style: "stroke:var(--teal)", "stroke-width": 2 }));
+      if (y1 - y0 >= 44) kids.push(el("text", { x: ax, y: (y0 + y1) / 2 + 4, "text-anchor": anchor, class: "saved", style: halo }, `${rupees(saved)} saved`));
+    }
+  } else {
+    kids.push(el("text", { x: (L + W - R) / 2, y: (T + H - B) / 2, "text-anchor": "middle" }, "The cost race draws itself after the first readings."));
+  }
+  const evs = s.events || [], firstShed = evs.find((e) => e.kind === "shed"); // only the day's first shed is numbered
+  const numbered = evs.filter((e) => e.kind in NUMBERED && (e.kind !== "shed" || e === firstShed));
+  for (const e of evs.filter((e) => e.kind in TICKED && !numbered.includes(e))) { // repeats: small ticks with a hover title
+    const tk = el("rect", { x: X(e.h) - 1.5, y: H - B - 9, width: 3, height: 9, rx: 1.5, style: `fill:${TONE_FILL[TICKED[e.kind]]}` });
+    tk.append(el("title", {}, `${e.t} ${e.text}`)); kids.push(tk);
+  }
+  const marks = numbered.slice(-7);
+  let prevX = -99, row = 0;
+  const keyItems = marks.map((e, i) => {
+    const cx = X(e.h), tone = NUMBERED[e.kind];
+    row = cx - prevX < 24 ? (row + 1) % 2 : 0; prevX = cx; // stack close markers in two rows
+    const cy = H - B + 42 + row * 22, fill = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber-ink)" : "var(--ink)";
+    kids.push(el("line", { x1: cx, x2: cx, y1: T, y2: H - B, style: "stroke:var(--grid)", "stroke-dasharray": "2 3" }));
+    kids.push(el("circle", { cx, cy, r: 10, style: `fill:${fill};stroke:var(--card);stroke-width:2` }));
+    kids.push(el("text", { x: cx, y: cy + 4, "text-anchor": "middle", style: "fill:var(--card);font-size:12px;font-weight:700" }, String(i + 1)));
+    const li = document.createElement("li"), b = document.createElement("b");
+    if (tone) li.dataset.tone = tone;
+    b.textContent = i + 1; li.append(b, `${e.t} ${e.text}`);
+    return li;
+  });
+  $("key").replaceChildren(...keyItems);
+  const g = el("g", { id: "hov", visibility: "hidden" });
+  g.append(el("line", { y1: T, y2: H - B, style: "stroke:var(--ink)", "stroke-opacity": 0.35 }),
+           el("circle", { r: 5, style: "fill:var(--card);stroke:var(--plain-ink);stroke-width:2" }),
+           el("circle", { r: 5, style: "fill:var(--teal);stroke:var(--card);stroke-width:2" }));
+  kids.push(g);
+  svg.replaceChildren(...kids);
+  const box = svg.parentElement; // on a phone the chart scrolls sideways: open it at "now", once
+  if (!box.dataset.placed && pts.length > 1 && box.scrollWidth > box.clientWidth) {
+    box.scrollLeft = (nowX / W) * box.scrollWidth - box.clientWidth * 0.6; box.dataset.placed = "1";
+  }
+  const lp = pts[pts.length - 1];
+  svg.setAttribute("aria-label", lp ? `Cost so far today at ${s.clock}: ${rupees(lp[1])} with the manager, ${rupees(lp[2])} with a plain thermostat.` : "Cost so far today: no readings yet.");
+  if (hoverX != null) hover(hoverX);
+}
+
+function hover(x) {
+  hoverX = x;
+  const pts = summary?.series || [], g = document.getElementById("hov"), tip = $("tip");
+  const h = ((x - L) / (W - L - R)) * 24;
+  const p = pts.reduce((best, q) => (!best || Math.abs(q[0] - h) < Math.abs(best[0] - h) ? q : best), null);
+  if (!p || !g || h < 0 || h > 24) { g?.setAttribute("visibility", "hidden"); tip.hidden = true; return; }
+  const [line, dp, dm] = g.children;
+  line.setAttribute("x1", X(p[0])); line.setAttribute("x2", X(p[0]));
+  dp.setAttribute("cx", X(p[0])); dp.setAttribute("cy", Y(p[2]));
+  dm.setAttribute("cx", X(p[0])); dm.setAttribute("cy", Y(p[1]));
+  g.setAttribute("visibility", "visible");
+  tip.innerHTML = `<b>${hhmm(p[0])}</b> · ${p[3] != null ? p[3].toFixed(1) + " °C" : ""}<br>Manager <b>${rupees(p[1])}</b> · plain ${rupees(p[2])} · saved <b>${rupees(p[2] - p[1])}</b>`;
+  tip.hidden = false;
+  const r = $("chart").getBoundingClientRect();
+  tip.style.left = Math.max(0, Math.min(r.width - tip.offsetWidth, (X(p[0]) / W) * r.width + 12)) + "px";
+}
+$("chart").addEventListener("pointermove", (ev) => { const r = $("chart").getBoundingClientRect(); hover(((ev.clientX - r.left) / r.width) * W); });
+$("chart").addEventListener("pointerleave", () => { hoverX = null; document.getElementById("hov")?.setAttribute("visibility", "hidden"); $("tip").hidden = true; });
+
+function renderEvents(s) {
+  const evs = [...(s?.events || []), ...overheats].sort((a, b) => a.h - b.h);
+  const shown = evs.slice(-8).reverse();
+  $("ev-empty").hidden = shown.length > 0;
+  const notable = ["fault", "overheat", "manual", "shed", "gateway", "schedule", "open", "resume"];
+  const lead = [...evs].reverse().find((e) => e.kind === "fault" || e.kind === "overheat") || [...evs].reverse().find((e) => notable.includes(e.kind)) || shown[0];
+  if (lead) {
+    const tone = { fault: "bad", overheat: "bad", shed: "warn", manual: "warn" }[lead.kind];
+    $("ev-h").innerHTML = "";
+    const b = document.createElement("b"); b.textContent = `At ${lead.t}`; if (tone) b.className = tone;
+    $("ev-h").append(b, ", " + lead.text.charAt(0).toLowerCase() + lead.text.slice(1));
+  } else $("ev-h").textContent = "Nothing has happened yet today.";
+  const list = $("events"), keys = new Set([...list.children].map((li) => li.dataset.key));
+  const items = shown.map((e) => {
+    const key = `${e.t}|${e.text}`;
+    const existing = [...list.children].find((li) => li.dataset.key === key);
+    if (existing) return existing;
+    const li = document.createElement("li"), i = document.createElement("i"), span = document.createElement("span"), time = document.createElement("time");
+    li.dataset.key = key;
+    const tone = { fault: "bad", overheat: "bad", shed: "warn", manual: "warn", resume: "good", restore: "good", open: "good" }[e.kind];
+    if (tone) li.dataset.tone = tone;
+    span.textContent = e.text; time.textContent = e.t;
+    li.append(i, span, time);
+    return li;
+  });
+  if (items.length !== list.children.length || items.some((li, k) => li !== list.children[k])) list.replaceChildren(...items);
+}
+
+function renderGateway(s) {
+  if (!s) { $("gw-h").textContent = "Reads through the gateway: waiting for the energy manager."; $("gw-sub").textContent = ""; return; }
+  $("gw-h").textContent = `Each read through the gateway takes ${s.read_ms.toFixed(1)} ms.`;
+  const g = s.gateway;
+  $("gw-sub").textContent = "The gateway itself adds about 0.2–0.35 ms of that (median, eval.py latency, laptop run). "
+    + (g ? `It restarted at ${g.t}; control came back after ${g.lost_s} s.` : "No gateway restarts today.")
+    + ` One control round (3 reads plus any switching) takes ${Math.round(s.loop_ms)} ms.`;
+}
+
+function renderDays(s) {
+  const rows = [...(s?.days || [])];
+  if (s?.yesterday?.partial) rows.push({ ...s.yesterday });
+  rows.reverse();
+  $("days-empty").hidden = rows.length > 0;
+  $("days-hint").textContent = (s && s.speed > 1 ? `Simulated days, clock at ${s.speed}× speed. ` : "") + "Too hot: minutes over the comfort band in office hours, manager · plain thermostat.";
+  $("days").replaceChildren(...rows.slice(0, 7).map((d) => {
+    const tr = document.createElement("tr");
+    const date = new Date(d.date + "T00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const pct = d.plain_cost > 0.5 ? Math.round(100 * (1 - d.cost / d.plain_cost)) + "%" : "–";
+    const hot = Math.round(d.hot_min) + " min · " + (d.plain_hot_min != null && d.plain_hot_min !== "" ? Math.round(d.plain_hot_min) : "–"); // older rows have no plain figure
+    const cells = [date + (d.partial ? " (part)" : ""), rupees(+d.cost), rupees(+d.plain_cost), pct, hot, String(Math.round(d.faults || 0))];
+    cells.forEach((v, i) => { const td = document.createElement("td"); td.textContent = v; if (i === 3 && pct !== "–") td.className = parseFloat(pct) > 0 ? "good" : "bad-num"; tr.append(td); });
+    return tr;
+  }));
+}
+
+// --- settings: read from the summary, written through the TD's writeproperty form ---
+const form = $("form");
+function fillSettings(set) {
+  if (!set || settingsDirty || form.contains(document.activeElement)) return;
+  form.open.value = hhmm(set.open); form.close.value = hhmm(set.close);
+  form.hi.value = set.hi; form.lo.value = set.lo; form.setback.value = set.setback; form.cap.value = set.cap;
+}
+form.addEventListener("input", () => { settingsDirty = true; $("setmsg").textContent = ""; validate(); });
+function validate() {
+  const bad = [];
+  const mark = (name, ok) => { form[name].setAttribute("aria-invalid", String(!ok)); if (!ok) bad.push(name); };
+  mark("close", form.open.value && form.close.value && toHours(form.close.value) > toHours(form.open.value));
+  mark("lo", +form.lo.value < +form.hi.value);
+  mark("cap", +form.cap.value > 0); mark("setback", +form.setback.value >= 0);
+  const msg = { close: "Closing time must be after opening time.", lo: "Fan-off temperature must be below fan-on.", cap: "The power cap must be above 0 W.", setback: "The after-hours wait can't be negative." };
+  if (bad.length) { $("setmsg").className = "msg bad"; $("setmsg").textContent = msg[bad[0]]; }
+  return !bad.length;
+}
+form.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!validate()) return;
+  const body = { open: toHours(form.open.value), close: toHours(form.close.value), hi: +form.hi.value, lo: +form.lo.value, setback: +form.setback.value, cap: +form.cap.value };
+  const btn = form.querySelector('[type="submit"]'); btn.disabled = true;
+  try {
+    const r = await fetch(href(things["room1-energy"], "properties", "settings", "writeproperty"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const out = await r.json().catch(() => ({}));
+    if (r.ok) { settingsDirty = false; $("setmsg").className = "msg ok"; $("setmsg").textContent = "Saved. The manager uses them from the next reading."; }
+    else { $("setmsg").className = "msg bad"; $("setmsg").textContent = { "need 0 <= open < close <= 24": "Closing time must be after opening time.", "need lo < hi": "Fan-off temperature must be below fan-on." }[out.error] || `The energy manager refused that: ${out.error || r.status}.`; }
+  } catch (e) { $("setmsg").className = "msg bad"; $("setmsg").textContent = "Couldn't reach the energy manager. Is it running?"; }
+  btn.disabled = false;
+});
+$("reset").addEventListener("click", () => { settingsDirty = false; form.querySelectorAll("input").forEach((i) => i.removeAttribute("aria-invalid")); $("setmsg").textContent = ""; document.activeElement.blur(); fillSettings(summary?.settings); });
+
+// --- polling ---
 async function poll() {
   try {
-    if (!Object.keys(things).length) await discover();
-    const [t, h, f, p] = await Promise.allSettled([
-      j(href(things["room1-sensor"], "properties", "temperature", "readproperty")),
-      j(href(things["room1-sensor"], "properties", "humidity", "readproperty")),
-      j(href(things["room1-fan"], "properties", "status", "readproperty")),
-      j(href(things["room1-plug"], "properties", "status", "readproperty")),
-    ]);
-    if (t.status === "fulfilled") {
-      $("temp").textContent = t.value.toFixed(1);
-      hist.push(t.value); if (hist.length > 60) hist.shift();
-      const lo = Math.min(...hist), hi = Math.max(...hist), span = Math.max(hi - lo, 1);
-      $("spark").setAttribute("points", hist.map((v, i) => `${(i / Math.max(hist.length - 1, 1)) * 200},${44 - ((v - lo) / span) * 40}`).join(" "));
-    }
-    if (h.status === "fulfilled") $("hum").textContent = h.value.toFixed(1);
-    f.status === "fulfilled" ? pill($("fan"), f.value.on) : gone($("fan"));
-    if (p.status === "fulfilled") { pill($("plug"), p.value.on); $("power").textContent = p.value.power; } else gone($("plug"));
-    const ok = [t, f, p].some((x) => x.status === "fulfilled");
-    $("dot").className = "dot" + (ok ? " ok" : "");
-    $("conn").textContent = ok ? "live" : "devices unreachable";
-    if (!ok) things = {};
-    watch();
+    if (!things["room1-energy"] || !things["room1-fan"]) await discover();
   } catch (e) {
-    things = {};
-    $("dot").className = "dot";
-    $("conn").textContent = "gateway unreachable";
+    $("live").dataset.state = "down"; $("conn").textContent = "Gateway unreachable"; $("banner").hidden = false;
+    things = {}; return;
   }
+  const [t, h, f, p, e] = await Promise.allSettled([
+    j(href(things["room1-sensor"], "properties", "temperature", "readproperty")),
+    j(href(things["room1-sensor"], "properties", "humidity", "readproperty")),
+    j(href(things["room1-fan"], "properties", "status", "readproperty")),
+    j(href(things["room1-plug"], "properties", "status", "readproperty")),
+    j(href(things["room1-energy"], "properties", "summary", "readproperty")),
+  ]);
+  summary = e.status === "fulfilled" ? e.value : null;
+  const ok = [t, f, p].some((x) => x.status === "fulfilled");
+  $("live").dataset.state = ok ? "live" : "down";
+  $("conn").textContent = ok ? "Live" : "Devices unreachable";
+  $("banner").hidden = ok;
+  $("clock").innerHTML = summary ? `<b>${summary.clock}</b> IST${summary.speed > 1 ? ` · simulated ×${summary.speed}` : ""}` : "";
+  renderVerdict(summary); renderDevices(t, h, f, p, summary); renderEvents(summary); renderGateway(summary); renderDays(summary);
+  if (summary) fillSettings(summary.settings);
+  if (!ok) things = {};
+  watch();
 }
 
 async function watch() { // HTTP long-poll: one GET blocks until the next overheat event
@@ -138,26 +657,39 @@ async function watch() { // HTTP long-poll: one GET blocks until the next overhe
   while (watching === link) {
     try {
       const v = await j(link);
-      const ul = $("alerts");
-      if (ul.firstChild?.classList?.contains("mute")) ul.replaceChildren();
-      const li = document.createElement("li");
-      li.innerHTML = '<span class="alert"></span> <span class="mute"></span>';
-      li.children[0].textContent = `Overheat: ${v} °C`;
-      li.children[1].textContent = new Date().toLocaleTimeString();
-      ul.prepend(li);
-    } catch (e) {
-      await new Promise((r) => setTimeout(r, 5000));
-    }
+      overheats.push({ t: summary?.clock || "--:--", h: summary?.h ?? 0, kind: "overheat", text: `The room hit ${v} °C, over the 35 °C alarm.` });
+      overheats = overheats.slice(-10); renderEvents(summary);
+    } catch (err) { await new Promise((r) => setTimeout(r, 5000)); }
   }
 }
 
-document.addEventListener("click", async (e) => {
-  const b = e.target.closest("button[data-act]");
-  if (!b) return;
+// device switches: feedback on press, stays busy until the gateway answers, errors stay until the next success
+document.querySelectorAll(".switch").forEach((sw) => sw.addEventListener("click", async () => {
+  const card = sw.closest(".dev"), err = card.querySelector('[data-role="err"]'), want = sw.getAttribute("aria-checked") !== "true";
+  sw.setAttribute("aria-checked", String(want)); sw.setAttribute("aria-busy", "true");
   try {
-    await j(href(things[b.dataset.thing], "actions", b.dataset.act, "invokeaction"), { method: "POST", headers: { "Content-Type": "application/json" } });
-  } catch (err) { $("conn").textContent = "command failed"; }
+    await j(href(things[sw.dataset.thing], "actions", want ? "switchOn" : "switchOff", "invokeaction"), { method: "POST", headers: { "Content-Type": "application/json" } });
+    err.hidden = true;
+  } catch (e) {
+    sw.setAttribute("aria-checked", String(!want));
+    err.textContent = `Couldn't switch ${sw.dataset.thing}: the gateway didn't answer. Try again.`; err.hidden = false;
+  }
+  sw.removeAttribute("aria-busy");
   poll();
+}));
+document.querySelectorAll('[data-role="resume"]').forEach((b) => b.addEventListener("click", async () => {
+  b.disabled = true;
+  try { await j(href(things["room1-energy"], "actions", "resumeAuto", "invokeaction"), { method: "POST" }); }
+  catch (e) { const err = b.closest(".dev").querySelector('[data-role="err"]'); err.textContent = "Couldn't reach the energy manager to resume automation."; err.hidden = false; }
+  b.disabled = false; poll();
+}));
+
+// colour theme: per-browser convenience, shared with /scale; "Auto" follows the system light/dark setting
+$("theme").value = document.documentElement.dataset.theme || "";
+$("theme").addEventListener("change", () => {
+  const v = $("theme").value;
+  if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme;
+  try { v ? localStorage.setItem("gwTheme", v) : localStorage.removeItem("gwTheme"); } catch (e) {}
 });
 
 poll();

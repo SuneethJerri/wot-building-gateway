@@ -1,13 +1,13 @@
 # Screenshots
 
-Documentation captures of the Level-1 / Level-1.m work, taken over the phone hotspot with
-the laptop running the broker + mock devices and the Raspberry Pi running the gateway.
-Captured headless (Chrome DevTools protocol) on 2026-11-16.
+Documentation captures of the Level-1 / Level-1.m work. The two dashboard captures are from the
+2026-11-18 redesign (laptop, mock devices, 50 simulated sensors, Warm theme); the device panels
+are from 2026-11-16. Captured headless (Chrome DevTools protocol).
 
 | File | What it shows |
 |------|---------------|
-| `dashboard-room.png` | Single-room dashboard (`/`): live temperature + sparkline, Fan On, Smart Plug On, overheat alerts, and the Things registered in the Directory. |
-| `dashboard-scale.png` | Multi-client scale dashboard (`/scale`) at **121 sensors**: aggregate tiles (count, average, min/max, over-threshold), the **Raspberry Pi host stats** card (CPU util, CPU temp, RAM, load, uptime), and the live temperature heatmap (cold→hot, red outline = over threshold). |
+| `dashboard-room.png` | Room dashboard (`/`): the day's saving against a plain thermostat as a sentence, the cost race with price periods and numbered decisions, device cards by Thing title, the decisions feed, gateway timing, last 7 days, settings and the Directory. |
+| `dashboard-scale.png` | Scale view (`/scale`) at 51 sensors: headline count, average and range, the live temperature of every sensor (blue cool, pale comfortable, red hot, dashed = no reading), and the gateway host's CPU, temperature and memory. |
 | `device-sensor.png` | Sensor device GUI (`:8090`, MQTT) — temperature/humidity + sparkline, with Heat/Cool **nudge** demo controls. |
 | `device-plug.png` | Smart-plug device GUI (`:8091`, HTTP) — on/off + power, with switch controls. |
 | `device-fan.png` | Fan-relay device GUI (`:8092`, CoAP) — on/off status with switch controls. |
