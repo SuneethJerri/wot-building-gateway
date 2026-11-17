@@ -6,3 +6,7 @@ __pycache__/
 eval/raw/
 tds/sim/
 eval/plots/
+
+# PlatformIO firmware
+firmware/**/.pio/
+firmware/**/include/secrets.h

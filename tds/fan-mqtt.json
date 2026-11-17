@@ -19,7 +19,7 @@
       "readOnly": true,
       "forms": [
         {
-          "href": "mqtt://localhost:1883/building/room1/fan/status",
+          "href": "mqtt://10.179.94.251:1883/building/room1/fan/status",
           "op": [
             "readproperty",
             "observeproperty"
@@ -32,7 +32,7 @@
     "switchOn": {
       "forms": [
         {
-          "href": "mqtt://localhost:1883/building/room1/fan/cmd",
+          "href": "mqtt://10.179.94.251:1883/building/room1/fan/cmd",
           "op": "invokeaction"
         }
       ]
@@ -40,7 +40,7 @@
     "switchOff": {
       "forms": [
         {
-          "href": "mqtt://localhost:1883/building/room1/fan/cmd",
+          "href": "mqtt://10.179.94.251:1883/building/room1/fan/cmd",
           "op": "invokeaction"
         }
       ]
