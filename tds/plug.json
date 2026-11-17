@@ -23,7 +23,7 @@
       "readOnly": true,
       "forms": [
         {
-          "href": "http://room1-plug.local:8081/status",
+          "href": "http://localhost:8081/status",
           "op": "readproperty"
         }
       ]
@@ -45,7 +45,7 @@
       },
       "forms": [
         {
-          "href": "http://room1-plug.local:8081/on",
+          "href": "http://localhost:8081/on",
           "op": "invokeaction",
           "htv:methodName": "POST"
         }
@@ -66,7 +66,7 @@
       },
       "forms": [
         {
-          "href": "http://room1-plug.local:8081/off",
+          "href": "http://localhost:8081/off",
           "op": "invokeaction",
           "htv:methodName": "POST"
         }

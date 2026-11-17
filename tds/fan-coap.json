@@ -19,7 +19,7 @@
       "readOnly": true,
       "forms": [
         {
-          "href": "coap://room1-fan.local:5683/status",
+          "href": "coap://localhost:5683/status",
           "op": "readproperty",
           "contentType": "application/json"
         }
@@ -30,7 +30,7 @@
     "switchOn": {
       "forms": [
         {
-          "href": "coap://room1-fan.local:5683/on",
+          "href": "coap://localhost:5683/on",
           "op": "invokeaction",
           "cov:method": "PUT"
         }
@@ -39,7 +39,7 @@
     "switchOff": {
       "forms": [
         {
-          "href": "coap://room1-fan.local:5683/off",
+          "href": "coap://localhost:5683/off",
           "op": "invokeaction",
           "cov:method": "PUT"
         }

@@ -12,7 +12,7 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
 
 - ✅ Read through the repo. Software side is complete and tested in mock mode
   (gateway, Directory, dashboard, app rule, eval harness, device sims).
-- ✅ Added `CLAUDE.md` (project guide + hardware map) and this devlog.
+- ✅ Added this devlog (project guide and hardware map now live in the README).
 - Baseline hardware map as written in code today:
   - DHT22 → BCM GPIO4 (`adafruit_dht`, `board.D4`)
   - Fan relay → BCM GPIO17 (`gpiozero.OutputDevice`)
@@ -88,13 +88,13 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   👉 Demo-day note: if the link looks dead, ping laptop from Pi to wake it.
 - ✅ Laptop→Pi ping 0% loss, SSH reaches auth. Both bands fine; 2.4 GHz usable for ESP32.
 - Laptop SSH key generated (`~/.ssh/id_ed25519`); installing on Pi via `ssh-copy-id` for
-  passwordless access so Claude Code can run commands on the Pi.
+  passwordless access so deploy scripts can run commands on the Pi.
 - ✅ Passwordless SSH confirmed (`ssh pi@10.164.189.4`). Pi toolchain checked:
   Node v20.19.1 ✅, npm 10.8.2 ✅, git 2.30.2 ✅, **Python 3.9.2 ⚠️** (README wants 3.10+ —
   verify before running Python devices on Pi in L2), **mosquitto ❌ not installed** (only
   needed if broker runs on Pi; L1 broker is on laptop).
 - 📓 Created `docs/demo-day-runbook.md` — addresses, the hotspot ARP trick, per-level
-  bring-up, pre-demo checklist. Linked from `CLAUDE.md`.
+  bring-up, pre-demo checklist. Linked from the README.
 
 ### ✅ LEVEL 1 WORKING end-to-end (across the hotspot)
 - Laptop: Python 3.10.12, mosquitto already on `0.0.0.0:1883` anon (used as-is, service
@@ -155,3 +155,84 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   launch returned early → switched to a file launcher + separate count step.
 - Verified N=60 → 63 Things (sim0..sim59 live, sim119 gone/404, room1-sensor live).
 - Level 1 (sim), Level 1.m (scale), per-device GUIs, and Pi host stats: all done & pushed.
+
+---
+
+## 2026-11-17 — Business logic: energy cost manager
+
+- ↪ Professor called the temperature→fan rule a toy. The app is now an **energy cost manager**
+  for an office room (`app/app.py` `policy()` + `Meter`):
+  - time-of-day tariff (example: night ₹6, day ₹8, evening peak 18–22 ₹10 per kWh), metered from
+    the plug's `power` + the fan's rated 50 W;
+  - office hours 09–18 keep the hi/lo band; after hours the band is raised 4 °C and the plug is off;
+  - power cap 100 W: the plug is shed while the fan runs (fan has priority);
+  - day report at midnight: kWh, cost, peak W, minutes too hot in office hours.
+- The app registers itself as Thing `room1-energy` (summary served on :8093). The dashboard has
+  an "Energy today" card. `lab.sh` runs the app at `SPEED=60` (1 h per minute) from `START=8`.
+- ✅ `python3 app/app.py --replay` (toy thermal model, one day): plain 1.74 kWh / ₹13.42 / 110 W
+  peak / 3 min too hot vs manager 0.48 kWh / ₹3.84 / 60 W / 3 min → **71% cheaper, same comfort**.
+- ✅ End to end against fake HTTP devices + the real Directory: the plug goes off before opening,
+  on at 09:00, is shed when the fan starts, comes back when the fan stops, and goes off at 18:00.
+  Not yet run on the Pi or with the real mosquitto devices.
+- ↪ **Manual override:** dashboard clicks used to be undone within 2 s by the rules. Now a device
+  found in a state the app didn't set is left alone for `--override` (30) simulated minutes; the
+  energy card shows the minutes left. ✅ Live (Level 1 sim + 50 sim sensors): fan clicked off at
+  10:11 while 30 °C, held off until 10:42, then the rule switched it back on.
+
+### "Do all": data points + features (2026-11-17, Level 1 on the laptop, 50 sim sensors)
+- ✅ **Fault detection:** fan on 15 min (`--fault`) and the room no cooler than at switch-on →
+  "fan fault or window open" (NOTIFY + dashboard banner + per-day count). Demoed with the new
+  **Open/close window** button on the mock sensor (`sensor.py --fan-status URL`: the mock room
+  now cools while the fan runs, so the live demo isn't a fixed sine any more).
+- ✅ **Settings as a writable WoT property** of `room1-energy` (`open close hi lo setback cap`),
+  edited from the dashboard. Validated as a whole: bad input → HTTP 400 with the reason, nothing changes.
+- ✅ **Cost chart** on the dashboard: manager vs plain thermostat on the same temperatures, price
+  bands behind, hover crosshair. **Day history** in `eval/raw/energy_days.csv`, last 7 days on the dashboard.
+- ✅ `lab.sh level1`: `SIM=N` option, mock sensor coupled to the fan, default band 28/26 (= app/eval).
+- 📊 `eval.py energy`: 71% cheaper per room-day (₹3.84 vs ₹13.42), same comfort; 50 rooms →
+  ₹10,534/month, hardware ₹81,000 → **payback 7.7 months**. Sweep: without the power cap the
+  saving is 42–50% (tighter band = dearer, 0 min too hot); with the cap 71–73%, because shedding
+  the 60 W plug saves more than the 50 W fan costs. With a real AC load that would flip.
+  The after-hours setback shows no effect in the replay (modelled evenings cool down below 28 °C
+  by themselves); it does in the live demo.
+- 📊 Latency, median direct → gateway: plug read 0.44 → 0.79 ms, plug action 0.45 → 0.79,
+  CoAP read 0.42 → 0.58, CoAP action 0.34 → 0.52 ms (laptop, not Pi).
+- 📊 `eval.py control`: control loop (3 reads + actions via gateway) median ~4 ms, p95 ~45 ms.
+  Swap CoAP ↔ MQTT: app lost control 0–3 s (was 9.9 s before cutting the retry from 5 s to 1 s).
+- 📊 Gateway CPU/RAM with all N sensors read every 2 s (laptop): N=10 1.0% / 172 MB, 25 1.0% / 173,
+  50 2.0% / 186, 100 2.9% / 193 MB. Pi numbers still to do.
+- ⚠️ Fixed: `eval.py resources` sampled its own process (its cmdline contains the names it
+  searches for), so every earlier resources CSV included the harness. Contaminated runs moved
+  to `eval/raw/self-sampled/`.
+- ⚠️ Fixed: a fast gateway restart could pass between two app rounds, leaving `room1-energy`
+  missing from the new Directory. The app now re-registers every 30 s.
+- ⚠️ Fixed: a run that starts mid-day no longer saves its partial first day; dates continue after
+  the last saved day. (The 0.069 kWh row in `energy_days.csv` is one such partial day from before the fix.)
+
+---
+
+## 2026-11-18 — Dashboard redesign, themes, repo renamed to wot-energy-gateway
+
+- ↪ Design review of the old dashboard scored 22/40: the saving was small grey text, the device
+  row read as "the toy", no comfort comparison, midnight wiped the day, and the WoT side was a
+  54-row list. Rebuilt both pages in a warm, plain-language card style:
+  - the day's verdict as a sentence ("You saved ₹3.26 today, 53% less than a plain thermostat"),
+    with comfort compared too;
+  - a cost race with price periods and numbered decisions;
+  - device cards titled by Thing, saying what automation did and why, with Resume auto;
+  - one feed of decisions on the simulated clock;
+  - a gateway card with live read time, measured overhead and restart stamp;
+  - 7-day history, settings with plain-language validation, and the Directory folded to the room
+    Things plus a link to /scale.
+- ✅ Colour themes Auto / Warm / Night / Ocean / Lilac in `gateway/theme.css`, shared by both pages;
+  every text pair checked ≥ 4.5:1. Figtree is self-hosted (`gateway/fonts`, OFL), since the hotspot
+  may be offline.
+- ✅ App: events log, plain thermostat comfort and peak, yesterday summary across midnight, read
+  latency and gateway-restart stamp, `resumeAuto` action on `room1-energy`. Re-registers every 10 s.
+- ✅ Worst-case data pass (₹12,345 amounts, manager worse than plain, 30 long events, offline plug)
+  found and fixed: axis ticks for large values, number grouping, history table overflow.
+- ⚠️ node-wot crashed once with an uncaught "Form not found" in its event-listener registry; the
+  gateway needed a restart. Noted in the README limitations.
+- Simulated sensors now stay between 18 and 32 °C (the random walk drifted to 8.7 °C over hours).
+- Repo renamed `wot-building-gateway` → `wot-energy-gateway`; CLAUDE.md removed; its demo levels,
+  hardware map and network notes moved into the README.
