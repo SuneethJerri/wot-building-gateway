@@ -38,6 +38,11 @@ Open `http://<host>:<gui-port>/`. The sensor's **nudge** buttons add/subtract a 
 offset to the reading — handy in a demo to push the temperature across the fan thresholds
 on purpose. Endpoints: `GET /state` (JSON), `POST /action/<label>`.
 
+`sensor.py --mock --fan-status URL` makes the mock room react to the fan: while the URL (the
+fan's status, e.g. `http://GW:8080/room1-fan/properties/status` through the gateway) says on,
+the room cools up to 6 °C below the swing. The **Open/close window** button stops the cooling,
+which triggers the energy manager's "fan fault or window open" alert. `lab.sh level1` sets it.
+
 `run.sh coap` kills a running mqtt relay and the other way round, that's the swap
 for the interoperability test. On the Pi without `--mock` the relay uses GPIO 17
 (`--pin` to change it).

@@ -31,7 +31,7 @@ def main():
     print(f"{a.n} sensors every {a.period}s, TDs in {a.out}", flush=True)
     while True:
         for i in range(a.n):
-            temps[i] += random.uniform(-0.2, 0.2)
+            temps[i] = min(32, max(18, temps[i] + random.uniform(-0.2, 0.2)))  # a random walk drifts away otherwise
             c.publish(f"building/sim{i}/temp", f"{temps[i]:.1f}", retain=True)
             c.publish(f"building/sim{i}/humidity", f"{random.uniform(40, 60):.1f}", retain=True)
         time.sleep(a.period)

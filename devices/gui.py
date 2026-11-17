@@ -7,6 +7,8 @@ daemon thread so it never blocks the device loop. Each device opts in with --gui
                  values, a "temperature" key also gets a live sparkline.
 - actions     -> {button label: callable()}; each POST /action/<label> runs it, then the
                  page re-reads state. Parameterless, so it works the same on every device.
+- settings    -> optional (get_fn, set_fn): GET /settings returns get_fn(), PUT /settings
+                 calls set_fn(json); set_fn raises ValueError to reject (400).
 
 This is the Level-1 stand-in for the self-hosted page a real ESP32 would serve.
 """
@@ -47,6 +49,7 @@ _PAGE = r"""<!doctype html>
  function render(s){
    const box=$("stats"); box.replaceChildren();
    for(const [k,v] of Object.entries(s)){
+     if(v!==null&&typeof v==="object")continue;
      const row=document.createElement("div"); row.className="stat";
      const kk=document.createElement("span"); kk.className="k"; kk.textContent=k;
      const vv=document.createElement("span");
@@ -71,7 +74,7 @@ _PAGE = r"""<!doctype html>
 </script></main></body></html>"""
 
 
-def run_gui(port, title, kind, state_fn, actions=None, host="0.0.0.0"):
+def run_gui(port, title, kind, state_fn, actions=None, host="0.0.0.0", settings=None):
     actions = actions or {}
     page = (_PAGE.replace("%%TITLE%%", title).replace("%%KIND%%", kind)
             .replace("%%ACTIONS%%", json.dumps(list(actions.keys()))))
@@ -94,8 +97,27 @@ def run_gui(port, title, kind, state_fn, actions=None, host="0.0.0.0"):
                 self._send(200, page, "text/html")
             elif self.path == "/state":
                 self._send(200, json.dumps(state_fn()))
+            elif self.path == "/settings" and settings:
+                self._send(200, json.dumps(settings[0]()))
             else:
                 self._send(404, "{}")
+
+        def do_OPTIONS(self):  # CORS preflight: the dashboard on another port PUTs JSON
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.end_headers()
+
+        def do_PUT(self):
+            if self.path != "/settings" or not settings:
+                return self._send(404, "{}")
+            try:
+                body = self.rfile.read(max(0, min(int(self.headers.get("Content-Length") or 0), 10000)))
+                settings[1](json.loads(body))
+            except (ValueError, TypeError) as e:  # bad JSON or a rejected value
+                return self._send(400, json.dumps({"error": str(e)}))
+            self._send(200, json.dumps(settings[0]()))
 
         def do_POST(self):
             if self.path.startswith("/action/"):

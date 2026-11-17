@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lab.sh - stop stray processes and bring up EXACTLY what a demo level needs.
-# See CLAUDE.md "Demo levels" for the fallback strategy.
+# See "Demo levels" in README.md for the fallback strategy.
 #
 #   ./lab.sh stop            kill all local devices + gateway + app (broker left up)
 #   ./lab.sh status          show what is currently running
@@ -10,14 +10,16 @@
 #
 # Addresses are DHCP; this script auto-detects the laptop IP and (for level3)
 # calls ./netconf.sh to refresh every TD/firmware address first.
-# Env overrides: LAPTOP_IP, BROKER, FAN_HOST, PLUG_HOST, HI, LO
+# Env overrides: LAPTOP_IP, BROKER, FAN_HOST, PLUG_HOST, HI, LO,
+#   SPEED (app clock, default 60 = 1 h per minute), START (clock start hour, default 8),
+#   SIM (level1: also run N simulated MQTT sensors, e.g. SIM=50; shown on /scale)
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
 PY="devices/.venv/bin/python"; [ -x "$PY" ] || PY="python3"
 detect_ip(){ ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+'; }
 LAPTOP_IP="${LAPTOP_IP:-$(detect_ip)}"; LAPTOP_IP="${LAPTOP_IP:-127.0.0.1}"
-HI="${HI:-25}"; LO="${LO:-22}"
+HI="${HI:-28}"; LO="${LO:-26}"   # same as the app defaults and eval.py energy
 log(){ echo "[lab] $*"; }
 
 start(){ local name="$1"; shift; setsid "$@" >"/tmp/wot-$name.log" 2>&1 </dev/null & log "started $name (pid $!) -> /tmp/wot-$name.log"; }
@@ -34,7 +36,7 @@ start_gateway(){ # extra TD/dir args beyond the three rooms are passed through
   start gateway env -C gateway node gateway.js --host "$LAPTOP_IP" \
       ../tds/sensor.json ../tds/fan-coap.json ../tds/plug.json "$@"
 }
-start_app(){ start app "$PY" app/app.py --hi "$HI" --lo "$LO"; }
+start_app(){ start app "$PY" app/app.py --hi "$HI" --lo "$LO" --host "$LAPTOP_IP" --speed "${SPEED:-60}" --start "${START:-8}"; }
 
 case "${1:-}" in
   stop)
@@ -45,7 +47,7 @@ case "${1:-}" in
     echo "-- device/infra processes --"
     ps -eo pid,etime,cmd | grep -E "devices/(sensor|coap_relay|mqtt_relay|http_plug|sim/sim)\.py|node gateway\.js|app/app\.py" | grep -v grep || echo "  (none running)"
     echo "-- listening ports --"
-    ss -ltn 2>/dev/null | grep -E ':(1883|8080|8081|9000|5683)' || echo "  (none of 1883/8080/8081/9000/5683)"
+    ss -ltn 2>/dev/null | grep -E ':(1883|8080|8081|8093|9000|5683)' || echo "  (none of 1883/8080/8081/8093/9000/5683)"
     echo "-- laptop IP: $LAPTOP_IP" ;;
 
   level1)
@@ -53,10 +55,17 @@ case "${1:-}" in
     stop_devices; stop_infra; sleep 1
     python3 tds/gen.py --broker "$LAPTOP_IP" --coap "$LAPTOP_IP" --plug "$LAPTOP_IP"
     ensure_broker
-    start sensor     "$PY" devices/sensor.py     --mock --broker "$LAPTOP_IP" --gui 8090
+    # the mock room cools while the fan runs (status read through the gateway, so the swap test still works)
+    start sensor     "$PY" devices/sensor.py     --mock --broker "$LAPTOP_IP" --gui 8090 \
+        --fan-status "http://$LAPTOP_IP:8080/room1-fan/properties/status"
     start coap_relay "$PY" devices/coap_relay.py --mock --gui 8092
     start http_plug  "$PY" devices/http_plug.py          --gui 8091
-    sleep 2; start_gateway; sleep 6; start_app
+    if [ "${SIM:-0}" -gt 0 ]; then
+      start sim "$PY" devices/sim/sim.py "$SIM" --broker "$LAPTOP_IP"; sleep 3; start_gateway ../tds/sim
+    else
+      sleep 2; start_gateway
+    fi
+    sleep 8; start_app
     log "dashboard: http://$LAPTOP_IP:9000/   (device GUIs on :8090/8091/8092)" ;;
 
   level2)
