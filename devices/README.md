@@ -47,7 +47,8 @@ which triggers the energy manager's "fan fault or window open" alert. `lab.sh le
 for the interoperability test. For the gateway's failover (`tds/fan.json`) run one relay with
 both: `coap_relay.py --mqtt BROKER`. Its panel's **Drop CoAP** stops the CoAP server and **Drop MQTT**
 unsubscribes and clears the retained status, so that path stops answering while the other keeps working. On the Pi without `--mock` the relay uses GPIO 17
-(`--pin` to change it).
+(`--pin` to change it). The SRD-05VDC relay module switches on when its input is LOW: add
+`--active-low` (`lab.sh level2` does).
 
 ## Trying them by hand
 

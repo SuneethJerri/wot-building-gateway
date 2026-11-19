@@ -15,8 +15,8 @@ def main():
     p.add_argument("--broker", default="localhost")
     p.add_argument("--port", type=int, default=1883)
     p.add_argument("--base", default="building/room1")
-    p.add_argument("--pin", type=int, default=4, help="BCM pin of the DHT22")
-    p.add_argument("--mock", action="store_true", help="random walk instead of a DHT22")
+    p.add_argument("--pin", type=int, default=4, help="BCM pin of the DHT11")
+    p.add_argument("--mock", action="store_true", help="random walk instead of a DHT11")
     p.add_argument("--threshold", type=float, default=35.0, help="overheat event above this degC")
     p.add_argument("--offset", type=float, default=0.0, help="calibration, added to temperature")
     p.add_argument("--gui", type=int, default=0, help="serve a device GUI on this port (0 = off)")
@@ -25,7 +25,7 @@ def main():
     if not a.mock:
         import adafruit_dht
         import board
-        dht = adafruit_dht.DHT22(getattr(board, f"D{a.pin}"))
+        dht = adafruit_dht.DHT11(getattr(board, f"D{a.pin}"))
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     c.connect(a.broker, a.port)
     c.loop_start()
@@ -56,7 +56,7 @@ def main():
         else:
             try:
                 t, h = dht.temperature, dht.humidity
-            except RuntimeError:  # DHT22 misreads often, just try again
+            except RuntimeError:  # DHT sensors misread often, just try again
                 time.sleep(2)
                 continue
         t = round(t + a.offset + live["nudge"], 1)  # live["nudge"] = GUI demo control

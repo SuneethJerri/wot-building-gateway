@@ -155,7 +155,7 @@ Notes / gotchas baked into `scale.sh`:
 (2 GB free). N=60 → 63 Things. Resource-vs-N numbers → `eval/eval.py resources`.
 
 ### Level 2 — RPi all-in-one (real DHT11 + relay on the Pi)
-- [ ] DHT22→DHT11 code change; relay active-low (`active_high=False`)
+- [x] DHT11 in `sensor.py`; relay `--active-low` flag (`lab.sh level2` passes it). Not yet tried on the hardware: check the LED is off while the dashboard says off.
 - [ ] decide where the broker lives (laptop vs install on Pi)
 - [ ] wiring: DHT11→GPIO4, SRD-05VDC relay→GPIO17, LED as the "fan"
 

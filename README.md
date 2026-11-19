@@ -93,8 +93,8 @@ bring-up per level and the pre-demo checklist.
 ### Hardware (Level 2, no `--mock`)
 
 - **Raspberry Pi 4 Model B**: gateway, MQTT broker on `:1883`.
-- **DHT11 sensor** on BCM GPIO4 (`sensor.py --pin 4`). `sensor.py` still constructs a DHT22; switch it to DHT11.
-- **SRD-05VDC-SL-C relay** (5 V, active-low input) on BCM GPIO17 (`coap_relay.py --pin 17`). `common.py` is active-high by default; set `active_high=False`. It drives an LED standing in for the fan.
+- **DHT11 sensor** on BCM GPIO4 (`sensor.py --pin 4`).
+- **SRD-05VDC-SL-C relay** (5 V, active-low input) on BCM GPIO17 (`coap_relay.py --pin 17 --active-low`; `lab.sh level2` passes the flag). Some relay boards have a jumper for high or low trigger: if the LED is lit while the dashboard says off, drop `--active-low`. It drives an LED standing in for the fan.
 - **Ports:** gateway `:8080`, Directory and dashboards `:9000`, CoAP `:5683`, HTTP plug `:8081`, manager `:8093`.
 - **Network:** everything shares one phone hotspot, and its DHCP addresses change, so regenerate the TDs each session with `python3 tds/gen.py --broker PI --coap H --plug H` and start `node gateway.js --host PI_IP`. If the laptop can't reach the Pi, ping the laptop from the Pi once (the hotspot forwards ARP lazily); details in the runbook.
 

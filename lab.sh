@@ -75,7 +75,7 @@ case "${1:-}" in
     python3 tds/gen.py --broker "$LAPTOP_IP" --coap "$LAPTOP_IP" --plug "$LAPTOP_IP"
     ensure_broker
     start sensor     "$PY" devices/sensor.py     --broker "$LAPTOP_IP" --pin 4
-    start coap_relay "$PY" devices/coap_relay.py --pin 17 --mqtt "$LAPTOP_IP"
+    start coap_relay "$PY" devices/coap_relay.py --pin 17 --active-low --mqtt "$LAPTOP_IP"   # SRD-05VDC: LOW = on
     start http_plug  "$PY" devices/http_plug.py
     sleep 2; start_gateway; sleep 6; start_app
     log "dashboard: http://$LAPTOP_IP:9000/" ;;

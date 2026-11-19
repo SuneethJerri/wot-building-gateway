@@ -47,10 +47,11 @@ async def main():
     p.add_argument("--port", type=int, default=5683)
     p.add_argument("--pin", type=int, default=17)
     p.add_argument("--mock", action="store_true", help="no GPIO, state only")
+    p.add_argument("--active-low", action="store_true", help="relay switches on when the pin is LOW (SRD-05VDC)")
     p.add_argument("--gui", type=int, default=0, help="serve a device GUI on this port (0 = off)")
     p.add_argument("--mqtt", metavar="BROKER", help="also serve the relay over MQTT, so the gateway can fail over")
     a = p.parse_args()
-    relay = Relay(a.pin, a.mock)
+    relay = Relay(a.pin, a.mock, a.active_low)
     loop, ctx = asyncio.get_running_loop(), None
 
     async def serve_coap(up):

@@ -53,8 +53,9 @@ def main():
     p.add_argument("--port", type=int, default=1883)
     p.add_argument("--pin", type=int, default=17)
     p.add_argument("--mock", action="store_true", help="no GPIO, state only")
+    p.add_argument("--active-low", action="store_true", help="relay switches on when the pin is LOW (SRD-05VDC)")
     a = p.parse_args()
-    attach(Relay(a.pin, a.mock), a.broker, a.port)
+    attach(Relay(a.pin, a.mock, a.active_low), a.broker, a.port)
     print(f"mqtt relay, broker {a.broker}:{a.port}", flush=True)
     threading.Event().wait()  # run until killed
 

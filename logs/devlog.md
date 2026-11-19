@@ -287,3 +287,14 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   dashboard's discovery code (run in Node against the live Directory) found all three.
 - ⚠️ Noticed, not changed: the manager only switches the plug on if it switched it off itself. `lab.sh level1`
   starts the mock plug off before the manager runs, so the plug stays off all day unless clicked on.
+
+---
+
+## 2026-11-19 — Level 2 code ready: DHT11 + active-low relay
+
+- ✅ `sensor.py` constructs `adafruit_dht.DHT11` (was DHT22, which can't read the DHT11 on hand).
+- ✅ `Relay(..., active_low=True)` → `gpiozero.OutputDevice(pin, active_high=False, initial_value=False)`;
+  `--active-low` on `coap_relay.py` and `mqtt_relay.py`, passed by `lab.sh level2`. Kept as a flag because
+  some relay boards have a high/low trigger jumper.
+- Checked against stub `gpiozero` / `adafruit_dht` modules on the laptop (no GPIO here). Still to do on the Pi:
+  first Level 2 run, confirm the LED is off when the dashboard says off.
