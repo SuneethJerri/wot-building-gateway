@@ -6,5 +6,7 @@ Both relay TDs have title `room1-fan` and the same names, only the forms differ,
 swap test is: point the gateway at `fan-coap.json` or `fan-mqtt.json`, app unchanged.
 `fan.json` has both forms per interaction (CoAP first, the preferred one); the gateway fails over
 between them.
-Validate each one in the W3C TD playground before committing. `sim/` holds the generated
+Every TD is annotated with what it is (ETSI SAREF / SAREF4BLDG `@type`s on the Thing and its
+affordances) and its room (`s4bldg:isContained`); the app finds Things by those, not by title.
+Simulated sensors are typed but in no room. Validate each one in the W3C TD playground before committing. `sim/` holds the generated
 TDs for the simulator.

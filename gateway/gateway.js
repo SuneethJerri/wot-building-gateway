@@ -38,13 +38,13 @@ function timeout(promise, ms) {
 }
 
 async function proxy(wot, consumed, td) {
-  const model = { title: td.title, id: "urn:gw:" + td.title, properties: {}, actions: {}, events: {} };
-  for (const [n, p] of Object.entries(td.properties || {})) {
-    const { forms, ...rest } = p;
-    model.properties[n] = { ...rest, observable: false };
-  }
-  for (const [n, a] of Object.entries(td.actions || {})) model.actions[n] = { input: a.input, output: a.output };
-  for (const [n, e] of Object.entries(td.events || {})) model.events[n] = { data: e.data };
+  // keep what the Thing is (@context, @type, its room) but not the device's own addresses or security
+  const { id, base, forms, properties, actions, events, security, securityDefinitions, ...meta } = td;
+  const model = { ...meta, id: "urn:gw:" + td.title, properties: {}, actions: {}, events: {} };
+  const strip = ({ forms, ...rest }) => rest;
+  for (const [n, p] of Object.entries(td.properties || {})) model.properties[n] = { ...strip(p), observable: false };
+  for (const [n, a] of Object.entries(td.actions || {})) model.actions[n] = strip(a);
+  for (const [n, e] of Object.entries(td.events || {})) model.events[n] = strip(e);
 
   const protos = [...new Set(Object.values({ ...td.properties, ...td.actions }).flatMap((a) => a.forms.map(scheme)))];
   const multi = protos.length > 1;
@@ -99,7 +99,8 @@ async function proxy(wot, consumed, td) {
   for (const [n, a] of Object.entries(td.actions || {})) {
     // contract: the mqtt relay wants a bare on/off on its cmd topic. switchOn/Off are idempotent,
     // so retrying one on another protocol after a timeout is safe.
-    const arg = (p) => (/^mqtt/.test(p) ? (n === "switchOn" ? "on" : "off") : undefined);
+    const isOn = n === "switchOn" || [].concat(a["@type"] || []).some((t) => t.endsWith("OnCommand")); // saref:OnCommand, any prefix
+    const arg = (p) => (/^mqtt/.test(p) ? (isOn ? "on" : "off") : undefined);
     exposed.setActionHandler(n, async () => {
       const out = await use(a.forms, (i, p) => consumed.invokeAction(n, arg(p), { formIndex: i }));
       return out ? out.value() : undefined;

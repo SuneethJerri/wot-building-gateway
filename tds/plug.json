@@ -1,5 +1,16 @@
 {
-  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "@context": [
+    "https://www.w3.org/2022/wot/td/v1.1",
+    {
+      "saref": "https://saref.etsi.org/core/",
+      "s4bldg": "https://saref.etsi.org/saref4bldg/"
+    }
+  ],
+  "@type": [
+    "s4bldg:Outlet",
+    "saref:Switch",
+    "saref:Meter"
+  ],
   "id": "urn:dev:room1-plug",
   "title": "room1-plug",
   "securityDefinitions": {
@@ -10,12 +21,14 @@
   "security": "nosec",
   "properties": {
     "status": {
+      "@type": "saref:OnOffState",
       "type": "object",
       "properties": {
         "on": {
           "type": "boolean"
         },
         "power": {
+          "@type": "saref:Power",
           "type": "number",
           "unit": "W"
         }
@@ -31,6 +44,7 @@
   },
   "actions": {
     "switchOn": {
+      "@type": "saref:OnCommand",
       "output": {
         "type": "object",
         "properties": {
@@ -38,6 +52,7 @@
             "type": "boolean"
           },
           "power": {
+            "@type": "saref:Power",
             "type": "number",
             "unit": "W"
           }
@@ -52,6 +67,7 @@
       ]
     },
     "switchOff": {
+      "@type": "saref:OffCommand",
       "output": {
         "type": "object",
         "properties": {
@@ -59,6 +75,7 @@
             "type": "boolean"
           },
           "power": {
+            "@type": "saref:Power",
             "type": "number",
             "unit": "W"
           }
@@ -72,5 +89,8 @@
         }
       ]
     }
+  },
+  "s4bldg:isContained": {
+    "@id": "urn:building:room1"
   }
 }

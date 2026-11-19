@@ -15,8 +15,11 @@ and the choice is readable as the Thing's extra `protocol` property. See "Protoc
 top README. Concurrent reads of one MQTT form share one request, because node-wot drops a second
 subscriber to the same topic and that read would never answer.
 
-Dashboard: `http://HOST:9000/` (`dashboard.html`, served by the Directory). It finds Things by title in
-the Directory and calls the gateway, like the app does.
+Each exposed TD keeps the device TD's `@context`, `@type`s and room (`s4bldg:isContained`), so clients can
+find Things by meaning; only the forms and security are the gateway's own.
+
+Dashboard: `http://HOST:9000/` (`dashboard.html`, served by the Directory). It finds devices by SAREF type
+and room in the Directory and calls the gateway, like the app does.
 
 Flags: `--port`, `--dir URL` (use an external Directory, then none is started), `--no-dir`.
 Check: `npm test` (failover choice and the Directory; the rest needs devices and a broker).

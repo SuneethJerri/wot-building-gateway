@@ -1,26 +1,35 @@
 """Writes the Thing Descriptions. Usage: python3 gen.py [--broker H] [--coap H] [--plug H]
-Hosts go into the hrefs, so rerun when the contract's TBD addresses are decided."""
+Hosts go into the hrefs, so rerun when the addresses change (netconf.sh does)."""
 import argparse
 import json
 import pathlib
 
-CTX = "https://www.w3.org/2022/wot/td/v1.1"
+# Semantic annotations: what each Thing and affordance IS, from ETSI SAREF (core + buildings), so the
+# app finds Things by meaning instead of by title. Terms checked against SAREF 3.2.1 / SAREF4BLDG 1.1.2.
+CTX = ["https://www.w3.org/2022/wot/td/v1.1",
+       {"saref": "https://saref.etsi.org/core/", "s4bldg": "https://saref.etsi.org/saref4bldg/"}]
+ROOM = "urn:building:room1"  # an s4bldg:BuildingSpace
 
 
-def sensor_td(title, broker, topic, port=1883):
+def located(td, room):
+    """Says which room the device is in (s4bldg:isContained); None = not in a room (simulated sensors)."""
+    return {**td, "s4bldg:isContained": {"@id": room}} if room else td
+
+
+def sensor_td(title, broker, topic, port=1883, room=None):
     base = f"mqtt://{broker}:{port}/{topic}"
-    prop = lambda unit: {"type": "number", "unit": unit, "readOnly": True, "observable": True,
-                         "forms": [{"href": None, "op": ["readproperty", "observeproperty"]}]}
-    props = {"temperature": prop("degC"), "humidity": prop("%")}
+    prop = lambda unit, kind: {"@type": kind, "type": "number", "unit": unit, "readOnly": True, "observable": True,
+                               "forms": [{"href": None, "op": ["readproperty", "observeproperty"]}]}
+    props = {"temperature": prop("degC", "saref:Temperature"), "humidity": prop("%", "saref:Humidity")}
     props["temperature"]["forms"][0]["href"] = f"{base}/temp"
     props["humidity"]["forms"][0]["href"] = f"{base}/humidity"
-    return {"@context": CTX, "id": f"urn:dev:{title}", "title": title, "securityDefinitions": {"nosec": {"scheme": "nosec"}},
-            "security": "nosec", "properties": props,
-            "events": {"overheat": {"data": {"type": "number", "unit": "degC"},
-                                    "forms": [{"href": f"{base}/overheat", "op": "subscribeevent"}]}}}
+    return located({"@context": CTX, "@type": "saref:TemperatureSensor", "id": f"urn:dev:{title}", "title": title,
+                    "securityDefinitions": {"nosec": {"scheme": "nosec"}}, "security": "nosec", "properties": props,
+                    "events": {"overheat": {"data": {"type": "number", "unit": "degC"},
+                                            "forms": [{"href": f"{base}/overheat", "op": "subscribeevent"}]}}}, room)
 
 
-def relay_td(title, kinds, coap_host, broker):
+def relay_td(title, kinds, coap_host, broker, room=ROOM):
     """One form per protocol in kinds, in that order: the gateway prefers the first and fails over."""
     on = {"type": "object", "properties": {"on": {"type": "boolean"}}}
     st, on_f, off_f = [], [], []
@@ -35,20 +44,22 @@ def relay_td(title, kinds, coap_host, broker):
             st.append({"href": f"{b}/status", "op": ["readproperty", "observeproperty"]})
             on_f.append({"href": f"{b}/cmd", "op": "invokeaction"})
             off_f.append({"href": f"{b}/cmd", "op": "invokeaction"})
-    return {"@context": CTX, "id": f"urn:dev:{title}-{'-'.join(kinds)}", "title": title,
-            "securityDefinitions": {"nosec": {"scheme": "nosec"}}, "security": "nosec",
-            "properties": {"status": {**on, "readOnly": True, "forms": st}},
-            "actions": {"switchOn": {"forms": on_f}, "switchOff": {"forms": off_f}}}
+    return located({"@context": CTX, "@type": ["s4bldg:Fan", "saref:Actuator"], "id": f"urn:dev:{title}-{'-'.join(kinds)}",
+                    "title": title, "securityDefinitions": {"nosec": {"scheme": "nosec"}}, "security": "nosec",
+                    "properties": {"status": {"@type": "saref:OnOffState", **on, "readOnly": True, "forms": st}},
+                    "actions": {"switchOn": {"@type": "saref:OnCommand", "forms": on_f},
+                                "switchOff": {"@type": "saref:OffCommand", "forms": off_f}}}, room)
 
 
-def plug_td(title, host):
+def plug_td(title, host, room=ROOM):
     b = f"http://{host}:8081"
-    st = {"type": "object", "properties": {"on": {"type": "boolean"}, "power": {"type": "number", "unit": "W"}}}
-    act = lambda p: {"output": st, "forms": [{"href": f"{b}/{p}", "op": "invokeaction", "htv:methodName": "POST"}]}
-    return {"@context": CTX, "id": f"urn:dev:{title}", "title": title,
-            "securityDefinitions": {"nosec": {"scheme": "nosec"}}, "security": "nosec",
-            "properties": {"status": {**st, "readOnly": True, "forms": [{"href": f"{b}/status", "op": "readproperty"}]}},
-            "actions": {"switchOn": act("on"), "switchOff": act("off")}}
+    st = {"type": "object", "properties": {"on": {"type": "boolean"}, "power": {"@type": "saref:Power", "type": "number", "unit": "W"}}}
+    act = lambda p, kind: {"@type": kind, "output": st, "forms": [{"href": f"{b}/{p}", "op": "invokeaction", "htv:methodName": "POST"}]}
+    return located({"@context": CTX, "@type": ["s4bldg:Outlet", "saref:Switch", "saref:Meter"], "id": f"urn:dev:{title}",
+                    "title": title, "securityDefinitions": {"nosec": {"scheme": "nosec"}}, "security": "nosec",
+                    "properties": {"status": {"@type": "saref:OnOffState", **st, "readOnly": True,
+                                              "forms": [{"href": f"{b}/status", "op": "readproperty"}]}},
+                    "actions": {"switchOn": act("on", "saref:OnCommand"), "switchOff": act("off", "saref:OffCommand")}}, room)
 
 
 def write(path, td):
@@ -64,7 +75,7 @@ if __name__ == "__main__":
     a.add_argument("--plug", default="localhost")
     a = a.parse_args()
     d = pathlib.Path(__file__).parent
-    write(d / "sensor.json", sensor_td("room1-sensor", a.broker, "building/room1"))
+    write(d / "sensor.json", sensor_td("room1-sensor", a.broker, "building/room1", room=ROOM))
     write(d / "fan-coap.json", relay_td("room1-fan", ["coap"], a.coap, a.broker))
     write(d / "fan-mqtt.json", relay_td("room1-fan", ["mqtt"], a.coap, a.broker))
     write(d / "fan.json", relay_td("room1-fan", ["coap", "mqtt"], a.coap, a.broker))  # failover

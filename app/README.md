@@ -1,9 +1,13 @@
 # app
 
 Energy cost manager for one office room. Talks only to Thing Descriptions, finds Things through
-the Directory, no hard-coded addresses.
+the Directory by what they are (SAREF types) and their room, no hard-coded titles or addresses.
 
-    python3 app.py --directory http://PI:9000 [--speed 60 --start 8] [--host LAPTOP_IP] [--notify-url https://ntfy.sh/topic]
+    python3 app.py --directory http://PI:9000 [--room urn:building:room1] [--speed 60 --start 8] [--host LAPTOP_IP] [--notify-url https://ntfy.sh/topic]
+
+It needs, in its `--room`: a Thing with a `saref:Temperature` property, an `s4bldg:Fan` and an
+`s4bldg:Outlet`, each with a `saref:OnOffState` property and `saref:OnCommand` / `saref:OffCommand`
+actions (`NEEDS` in `app.py`; "Semantic discovery" in the top README).
 
 Rules (`policy()` in `app.py`):
 

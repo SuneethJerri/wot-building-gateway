@@ -1,5 +1,15 @@
 {
-  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "@context": [
+    "https://www.w3.org/2022/wot/td/v1.1",
+    {
+      "saref": "https://saref.etsi.org/core/",
+      "s4bldg": "https://saref.etsi.org/saref4bldg/"
+    }
+  ],
+  "@type": [
+    "s4bldg:Fan",
+    "saref:Actuator"
+  ],
   "id": "urn:dev:room1-fan-mqtt",
   "title": "room1-fan",
   "securityDefinitions": {
@@ -10,6 +20,7 @@
   "security": "nosec",
   "properties": {
     "status": {
+      "@type": "saref:OnOffState",
       "type": "object",
       "properties": {
         "on": {
@@ -30,6 +41,7 @@
   },
   "actions": {
     "switchOn": {
+      "@type": "saref:OnCommand",
       "forms": [
         {
           "href": "mqtt://localhost:1883/building/room1/fan/cmd",
@@ -38,6 +50,7 @@
       ]
     },
     "switchOff": {
+      "@type": "saref:OffCommand",
       "forms": [
         {
           "href": "mqtt://localhost:1883/building/room1/fan/cmd",
@@ -45,5 +58,8 @@
         }
       ]
     }
+  },
+  "s4bldg:isContained": {
+    "@id": "urn:building:room1"
   }
 }

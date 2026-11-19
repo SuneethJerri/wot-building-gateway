@@ -180,7 +180,7 @@
   <div class="col">
     <section aria-labelledby="dev-h" class="col">
       <div>
-        <h2 class="sec-title" id="dev-h">Every device is reached by its Thing title.</h2>
+        <h2 class="sec-title" id="dev-h">Every device is found by what it is, not by its name.</h2>
         <p class="sec-sub">Found in the Thing Directory. The app never sees MQTT, CoAP or HTTP.</p>
       </div>
       <article class="card dev" id="dev-fan">
@@ -191,7 +191,7 @@
           <p class="err" data-role="err" role="alert" hidden></p>
         </div>
         <div class="dev-ctl">
-          <button class="switch" role="switch" aria-checked="false" aria-label="room1-fan power" data-thing="room1-fan" disabled><span></span></button>
+          <button class="switch" role="switch" aria-checked="false" aria-label="room1-fan power" data-thing="fan" disabled><span></span></button>
           <button class="btn secondary small" data-role="resume" hidden>Resume auto</button>
         </div>
       </article>
@@ -203,7 +203,7 @@
           <p class="err" data-role="err" role="alert" hidden></p>
         </div>
         <div class="dev-ctl">
-          <button class="switch" role="switch" aria-checked="false" aria-label="room1-plug power" data-thing="room1-plug" disabled><span></span></button>
+          <button class="switch" role="switch" aria-checked="false" aria-label="room1-plug power" data-thing="plug" disabled><span></span></button>
           <button class="btn secondary small" data-role="resume" hidden>Resume auto</button>
         </div>
       </article>
@@ -269,6 +269,18 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let things = {}, summary = null, localEvents = [], lastSwitch = null, watching = "", settingsDirty = false;
 
 const href = (td, kind, name, op) => (td?.[kind]?.[name]?.forms || []).find((f) => [].concat(f.op).includes(op))?.href;
+// Devices are found like the app finds them: by what they are (SAREF types) and their room, not by title.
+const SAREF = "https://saref.etsi.org/core/", S4BLDG = "https://saref.etsi.org/saref4bldg/", ROOM = "urn:building:room1";
+const list = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
+const expand = (td, term) => { // saref:Fan -> full IRI, with the TD's own @context prefixes
+  const i = term.indexOf(":"), ctx = Object.assign({}, ...list(td["@context"]).filter((c) => c && typeof c === "object"));
+  return i > 0 && typeof ctx[term.slice(0, i)] === "string" ? ctx[term.slice(0, i)] + term.slice(i + 1) : term;
+};
+const types = (td, node) => list(node?.["@type"]).map((t) => expand(td, t));
+const inRoom = (td) => Object.entries(td).some(([k, v]) => v?.["@id"] === ROOM && expand(td, k) === S4BLDG + "isContained");
+const findIn = (all, iri) => all.find((td) => inRoom(td) && [td, ...["properties", "actions", "events"].flatMap((k) => Object.values(td[k] || {}))].some((n) => types(td, n).includes(iri)));
+const typed = (td, kind, iri) => Object.keys(td?.[kind] || {}).find((n) => types(td, td[kind][n]).includes(iri));
+const at = (td, kind, iri, op) => href(td, kind, typed(td, kind, iri), op); // the form of the affordance that is iri
 async function j(url, opt) {
   if (!url) throw new Error("no form");
   const r = await fetch(url, opt);
@@ -301,8 +313,13 @@ function num(el, value, fmt) { // a <b> inside a sentence that keeps its own twe
 
 async function discover() {
   const all = await j("/things");
-  things = {};
-  all.forEach((t) => (things[t.title] = t));
+  things = { sensor: findIn(all, SAREF + "Temperature"), fan: findIn(all, S4BLDG + "Fan"), plug: findIn(all, S4BLDG + "Outlet"),
+             energy: all.find((t) => t.title === "room1-energy") }; // the manager is this page's own backend
+  for (const k of ["sensor", "fan", "plug"]) { // cards show whatever the found Thing calls itself
+    const card = $("dev-" + k), title = things[k]?.title || "not found";
+    card.querySelector(".tt").textContent = title;
+    card.querySelector(".switch")?.setAttribute("aria-label", `${title} power`);
+  }
   const room = all.filter((t) => !/^sim\d+$/.test(t.title)).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
   const sims = all.filter((t) => /^sim\d+$/.test(t.title)).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
   const nTemp = all.filter((t) => href(t, "properties", "temperature", "readproperty")).length;
@@ -348,7 +365,7 @@ function renderLink(l) {
   const sw = l.switched;
   if (sw && lastSwitch !== null && sw.at !== lastSwitch) {
     const why = sw.reason === "down" ? `${proto(sw.from)} stopped answering` : `${proto(sw.to)} was clearly faster`;
-    localEvents.push({ t: summary?.clock || "--:--", h: summary?.h ?? 0, kind: "gateway", text: `The gateway moved room1-fan from ${proto(sw.from)} to ${proto(sw.to)}: ${why}.` });
+    localEvents.push({ t: summary?.clock || "--:--", h: summary?.h ?? 0, kind: "gateway", text: `The gateway moved ${things.fan?.title || "the fan"} from ${proto(sw.from)} to ${proto(sw.to)}: ${why}.` });
     localEvents = localEvents.slice(-10);
   }
   lastSwitch = sw?.at ?? 0;
@@ -365,7 +382,7 @@ function renderDevices(t, h, f, p, s) {
     if (manualFan) { chip = `Manual · ${st.fan_manual_min} min`; tone = "warn"; why = `Switched by hand. Automation takes over again in ${st.fan_manual_min} min.`; }
     if (st.fault) { chip = "Fault"; tone = "bad"; why = "It has run without cooling the room. Check the fan, or close the window."; }
     setDevice("dev-fan", { chip, tone, say: on ? "The fan is on, cooling the room." : "The fan is off.", why, on, resume: manualFan });
-  } else setDevice("dev-fan", { chip: "Offline", tone: "bad", say: "Can't reach the fan.", why: "The gateway has no answer from room1-fan.", on: false, disabled: true });
+  } else setDevice("dev-fan", { chip: "Offline", tone: "bad", say: "Can't reach the fan.", why: `The gateway has no answer from ${things.fan?.title || "the fan"}.`, on: false, disabled: true });
 
   if (p.status === "fulfilled") {
     const on = p.value.on, cap = set.cap ?? 100;
@@ -376,7 +393,7 @@ function renderDevices(t, h, f, p, s) {
     if (!on && st.plug_reason === "schedule") { chip = "Off by schedule"; say = "The plug is off: the office is closed."; why = `It comes back on at ${fmtHour(set.open ?? 9)}.`; }
     if (manualPlug) { chip = `Manual · ${st.plug_manual_min} min`; tone = "warn"; why = `Switched by hand. Automation takes over again in ${st.plug_manual_min} min.`; }
     setDevice("dev-plug", { chip, tone, say, why, on, resume: manualPlug });
-  } else setDevice("dev-plug", { chip: "Offline", tone: "bad", say: "Can't reach the plug.", why: "The gateway has no answer from room1-plug.", on: false, disabled: true });
+  } else setDevice("dev-plug", { chip: "Offline", tone: "bad", say: "Can't reach the plug.", why: `The gateway has no answer from ${things.plug?.title || "the plug"}.`, on: false, disabled: true });
 
   if (t.status === "fulfilled") {
     const temp = t.value, hum = h.status === "fulfilled" ? h.value : null, lo = set.lo ?? 26, hi = set.hi ?? 28;
@@ -388,7 +405,7 @@ function renderDevices(t, h, f, p, s) {
     $("g-band").style.left = pos(lo) + "%"; $("g-band").style.width = (pos(hi) - pos(lo)) + "%";
     $("g-dot").style.left = pos(temp) + "%"; $("g-dot").classList.toggle("hot", hot);
     $("g-label").textContent = `${lo}–${hi}\u00a0°C`;
-  } else setDevice("dev-sensor", { chip: "Offline", tone: "bad", say: "Can't reach the sensor.", why: "The gateway has no answer from room1-sensor." });
+  } else setDevice("dev-sensor", { chip: "Offline", tone: "bad", say: "Can't reach the sensor.", why: `The gateway has no answer from ${things.sensor?.title || "the sensor"}.` });
 }
 
 function renderVerdict(s) {
@@ -631,7 +648,7 @@ form.addEventListener("submit", async (ev) => {
   const body = { open: toHours(form.open.value), close: toHours(form.close.value), hi: +form.hi.value, lo: +form.lo.value, setback: +form.setback.value, cap: +form.cap.value };
   const btn = form.querySelector('[type="submit"]'); btn.disabled = true;
   try {
-    const r = await fetch(href(things["room1-energy"], "properties", "settings", "writeproperty"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(href(things.energy, "properties", "settings", "writeproperty"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const out = await r.json().catch(() => ({}));
     if (r.ok) { settingsDirty = false; $("setmsg").className = "msg ok"; $("setmsg").textContent = "Saved. The manager uses them from the next reading."; }
     else { $("setmsg").className = "msg bad"; $("setmsg").textContent = { "need 0 <= open < close <= 24": "Closing time must be after opening time.", "need lo < hi": "Fan-off temperature must be below fan-on." }[out.error] || `The energy manager refused that: ${out.error || r.status}.`; }
@@ -643,20 +660,20 @@ $("reset").addEventListener("click", () => { settingsDirty = false; form.querySe
 // --- polling ---
 async function poll() {
   try {
-    if (!things["room1-energy"] || !things["room1-fan"]) await discover();
+    if (!things.energy || !things.fan) await discover();
   } catch (e) {
     $("live").dataset.state = "down"; $("conn").textContent = "Gateway unreachable"; $("banner").hidden = false;
     things = {}; return;
   }
   const [t, h, f, p, e] = await Promise.allSettled([
-    j(href(things["room1-sensor"], "properties", "temperature", "readproperty")),
-    j(href(things["room1-sensor"], "properties", "humidity", "readproperty")),
-    j(href(things["room1-fan"], "properties", "status", "readproperty")),
-    j(href(things["room1-plug"], "properties", "status", "readproperty")),
-    j(href(things["room1-energy"], "properties", "summary", "readproperty")),
+    j(at(things.sensor, "properties", SAREF + "Temperature", "readproperty")),
+    j(at(things.sensor, "properties", SAREF + "Humidity", "readproperty")),
+    j(at(things.fan, "properties", SAREF + "OnOffState", "readproperty")),
+    j(at(things.plug, "properties", SAREF + "OnOffState", "readproperty")),
+    j(href(things.energy, "properties", "summary", "readproperty")),
   ]);
   // only multi-protocol Things have it: which protocol the gateway uses for the fan (failover)
-  const linkHref = href(things["room1-fan"], "properties", "protocol", "readproperty");
+  const linkHref = href(things.fan, "properties", "protocol", "readproperty");
   const link = linkHref ? await j(linkHref).catch(() => null) : null;
   summary = e.status === "fulfilled" ? e.value : null;
   const ok = [t, f, p].some((x) => x.status === "fulfilled");
@@ -671,7 +688,7 @@ async function poll() {
 }
 
 async function watch() { // HTTP long-poll: one GET blocks until the next overheat event
-  const link = href(things["room1-sensor"], "events", "overheat", "subscribeevent");
+  const link = href(things.sensor, "events", "overheat", "subscribeevent");
   if (!link || link === watching) return;
   watching = link;
   while (watching === link) {
@@ -688,18 +705,18 @@ document.querySelectorAll(".switch").forEach((sw) => sw.addEventListener("click"
   const card = sw.closest(".dev"), err = card.querySelector('[data-role="err"]'), want = sw.getAttribute("aria-checked") !== "true";
   sw.setAttribute("aria-checked", String(want)); sw.setAttribute("aria-busy", "true");
   try {
-    await j(href(things[sw.dataset.thing], "actions", want ? "switchOn" : "switchOff", "invokeaction"), { method: "POST", headers: { "Content-Type": "application/json" } });
+    await j(at(things[sw.dataset.thing], "actions", SAREF + (want ? "OnCommand" : "OffCommand"), "invokeaction"), { method: "POST", headers: { "Content-Type": "application/json" } });
     err.hidden = true;
   } catch (e) {
     sw.setAttribute("aria-checked", String(!want));
-    err.textContent = `Couldn't switch ${sw.dataset.thing}: the gateway didn't answer. Try again.`; err.hidden = false;
+    err.textContent = `Couldn't switch ${things[sw.dataset.thing]?.title || sw.dataset.thing}: the gateway didn't answer. Try again.`; err.hidden = false;
   }
   sw.removeAttribute("aria-busy");
   poll();
 }));
 document.querySelectorAll('[data-role="resume"]').forEach((b) => b.addEventListener("click", async () => {
   b.disabled = true;
-  try { await j(href(things["room1-energy"], "actions", "resumeAuto", "invokeaction"), { method: "POST" }); }
+  try { await j(href(things.energy, "actions", "resumeAuto", "invokeaction"), { method: "POST" }); }
   catch (e) { const err = b.closest(".dev").querySelector('[data-role="err"]'); err.textContent = "Couldn't reach the energy manager to resume automation."; err.hidden = false; }
   b.disabled = false; poll();
 }));

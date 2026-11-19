@@ -1,5 +1,6 @@
-"""Energy cost manager for one office room. Only knows the Directory URL and Thing titles, never
-device addresses or protocols: every URL comes out of a Thing Description form.
+"""Energy cost manager for one office room. Only knows the Directory URL, its room, and what it
+needs by meaning (SAREF types: a temperature, a fan, an outlet), never Thing titles, device
+addresses or protocols: every URL comes out of a Thing Description form.
 python3 app.py --directory http://PI:9000 [--speed 60 --start 8] [--host LAPTOP_IP] [--notify-url URL]
 Report numbers (replay, settings sweep, payback): python3 ../eval/eval.py energy"""
 import argparse
@@ -21,17 +22,50 @@ FAN_W, PLUG_W = 50, 60  # rated loads; the fan reports no power, the plug draws 
 SETTINGS = ("open", "close", "cap", "hi", "lo", "setback")  # writable from the dashboard
 HISTORY = pathlib.Path(__file__).parents[1] / "eval" / "raw" / "energy_days.csv"
 
+# What the manager looks for in the Directory, as full IRIs, so any prefix a TD maps to them works.
+SAREF, S4BLDG = "https://saref.etsi.org/core/", "https://saref.etsi.org/saref4bldg/"
+TEMPERATURE, ONOFF = SAREF + "Temperature", SAREF + "OnOffState"
+COMMAND = {"switchOn": SAREF + "OnCommand", "switchOff": SAREF + "OffCommand"}
+NEEDS = {"sensor": TEMPERATURE, "fan": S4BLDG + "Fan", "plug": S4BLDG + "Outlet"}
+
 
 def get(url):
     with urllib.request.urlopen(url, timeout=10) as r:
         return json.load(r)
 
 
-def find(directory, title):
+def as_list(x):
+    return x if isinstance(x, list) else [] if x is None else [x]
+
+
+def expand(td, term):
+    """saref:Fan -> https://saref.etsi.org/core/Fan using the TD's own @context prefixes. TDs use the
+    compact JSON-LD form, so this is all the JSON-LD processing finding a Thing needs."""
+    prefix, _, local = term.partition(":")
+    ctx = {k: v for c in as_list(td.get("@context")) if isinstance(c, dict) for k, v in c.items() if isinstance(v, str)}
+    return ctx[prefix] + local if prefix in ctx else term
+
+
+def types(td, node):
+    return {expand(td, t) for t in as_list(node.get("@type"))}
+
+
+def find(directory, room, iri):
+    """The Thing in this room that is iri, or has a property/action/event that is: by meaning, not title."""
     for td in get(directory + "/things"):
-        if td["title"] == title:
+        place = next((v.get("@id") for k, v in td.items() if isinstance(v, dict) and expand(td, k) == S4BLDG + "isContained"), None)
+        nodes = [td, *(x for k in ("properties", "actions", "events") for x in td.get(k, {}).values())]
+        if place == room and any(iri in types(td, x) for x in nodes):
             return td
-    raise LookupError(f"no Thing called {title!r} in {directory}")
+    raise LookupError(f"nothing in {room} is a {iri} ({directory})")
+
+
+def typed(td, kind, iri):
+    """The name of td's property/action that is iri, e.g. the action that is a saref:OnCommand."""
+    for name, x in td.get(kind, {}).items():
+        if iri in types(td, x):
+            return name
+    raise LookupError(f"{td['title']} has no {kind} that is a {iri}")
 
 
 def href(td, kind, name, op):
@@ -41,8 +75,8 @@ def href(td, kind, name, op):
     raise LookupError(f"{td['title']}.{name} has no {op} form")
 
 
-def invoke(td, name):
-    req = urllib.request.Request(href(td, "actions", name, "invokeaction"), data=b"", method="POST", headers={"Content-Type": "application/json"})
+def invoke(td, act):  # act: switchOn / switchOff, found by its SAREF command type
+    req = urllib.request.Request(href(td, "actions", typed(td, "actions", COMMAND[act]), "invokeaction"), data=b"", method="POST", headers={"Content-Type": "application/json"})
     urllib.request.urlopen(req, timeout=10).read()
 
 
@@ -201,9 +235,7 @@ def watch_overheat(sensor, url):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--directory", default="http://localhost:9000")
-    p.add_argument("--sensor", default="room1-sensor")
-    p.add_argument("--fan", default="room1-fan")
-    p.add_argument("--plug", default="room1-plug")
+    p.add_argument("--room", default="urn:building:room1", help="the s4bldg:BuildingSpace whose devices to manage")
     policy_args(p)
     p.add_argument("--override", type=float, default=30.0, help="minutes the rules leave a hand-switched device alone")
     p.add_argument("--fault", type=float, default=15.0, help="minutes the fan may run without the room cooling before an alert")
@@ -251,9 +283,11 @@ def main():
             register(a)  # the Directory is in-memory: register after every reconnect, and every 10 s below
             registered = time.time()  # a fast gateway restart (swap test) can pass between two rounds unseen
             # looked up each round, so a swapped fan (CoAP <-> MQTT) is picked up without a restart
-            sensor, fan, plug = find(a.directory, a.sensor), find(a.directory, a.fan), find(a.directory, a.plug)
-            link = href(sensor, "events", "overheat", "subscribeevent")
-            if link not in watching:
+            sensor, fan, plug = (find(a.directory, a.room, NEEDS[k]) for k in ("sensor", "fan", "plug"))
+            temp_url = href(sensor, "properties", typed(sensor, "properties", TEMPERATURE), "readproperty")
+            fan_url, plug_url = (href(td, "properties", typed(td, "properties", ONOFF), "readproperty") for td in (fan, plug))
+            link = href(sensor, "events", "overheat", "subscribeevent") if "overheat" in sensor.get("events", {}) else None
+            if link and link not in watching:
                 watching.add(link)
                 threading.Thread(target=watch_overheat, args=(sensor, a.notify_url), daemon=True).start()
             while True:
@@ -281,9 +315,9 @@ def main():
                 hours, last = el - last, el
                 live.update(clock=f"{int(h):02d}:{int(h % 1 * 60):02d}", h=round(h, 3))
                 t = time.perf_counter()
-                temp = get(href(sensor, "properties", "temperature", "readproperty"))
-                on = get(href(fan, "properties", "status", "readproperty"))["on"]
-                ps = get(href(plug, "properties", "status", "readproperty"))
+                temp = get(temp_url)
+                on = get(fan_url)["on"]
+                ps = get(plug_url)
                 reads.append((time.perf_counter() - t) * 1000 / 3)
                 if down_since is not None:  # first good round after the gateway went away (e.g. the swap test)
                     gateway = {"t": live["clock"], "lost_s": round(time.time() - down_since, 1)}

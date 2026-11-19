@@ -263,3 +263,27 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
   (1.0 s), app lost control once for 3.0 s, back to CoAP within one probe after Restore. Drop MQTT
   while on CoAP: no switch. Both down: reads fail with 500 in 2 s, gateway stays up; recovery from
   either side works. Fan status read: CoAP 1.2 ms vs MQTT 42 ms through the gateway.
+
+---
+
+## 2026-11-19 — Semantic discovery (SAREF)
+
+- ↪ The manager and dashboard found Things by title and used fixed affordance names, so renaming a device
+  or bringing another vendor's TD broke them. TDs are JSON-LD; now they say what each device is.
+- `tds/gen.py`: `@context` adds `saref:` (https://saref.etsi.org/core/) and `s4bldg:`
+  (https://saref.etsi.org/saref4bldg/). Terms checked against SAREF 3.2.1 and SAREF4BLDG 1.1.2 (the
+  location relation is `s4bldg:isContained`, not `isContainedIn`; SAREF core has no location term).
+  Sensor `saref:TemperatureSensor`, fan `s4bldg:Fan`, plug `s4bldg:Outlet` + `saref:Switch` + `saref:Meter`;
+  affordances `saref:Temperature/Humidity/OnOffState/OnCommand/OffCommand/Power`; room
+  `urn:building:room1`. All TDs still pass the TD 1.1 JSON Schema. Sims are typed but in no room.
+- Gateway now copies `@context`, `@type`s and the room into the TDs it exposes (it dropped them before).
+  Its MQTT on/off payload mapping now keys on `OnCommand` instead of the action name `switchOn`.
+- App: `find(directory, room, iri)` + `typed(td, kind, iri)`, prefixes expanded from each TD's own
+  `@context` (stdlib, no JSON-LD library). `--sensor/--fan/--plug` titles replaced by `--room`.
+  Dashboard does the same in JS and labels the cards with whatever title it found.
+- ✅ Level 1: normal run unchanged. Rename test (titles `acme-thermo-7` / `ceiling-fan` / `desk-socket`,
+  prefixes `s:`/`b:`, names `temp`/`state`/`on`/`off`), gateway restarted only: manager resumed after 2 s and
+  switched the fan off through `off`; renamed actions also worked over MQTT with CoAP dropped; the
+  dashboard's discovery code (run in Node against the live Directory) found all three.
+- ⚠️ Noticed, not changed: the manager only switches the plug on if it switched it off itself. `lab.sh level1`
+  starts the mock plug off before the manager runs, so the plug stays off all day unless clicked on.

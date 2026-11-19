@@ -1,6 +1,7 @@
 from argparse import Namespace
 
-from app import Meter, apply_settings, decide, fan_fault, href, policy, price, replay
+import app as appmod
+from app import COMMAND, NEEDS, TEMPERATURE, Meter, apply_settings, decide, fan_fault, find, href, policy, price, replay, typed
 
 assert decide(29, False, 28, 26) == "switchOn"
 assert decide(29, True, 28, 26) is None
@@ -9,6 +10,27 @@ assert decide(25, True, 28, 26) == "switchOff"
 assert decide(25, False, 28, 26) is None
 td = {"title": "t", "properties": {"x": {"forms": [{"href": "a", "op": ["readproperty"]}]}}}
 assert href(td, "properties", "x", "readproperty") == "a"
+
+# semantic discovery: another vendor's sensor with its own prefixes, title and names is still found
+ctx = ["https://www.w3.org/2022/wot/td/v1.1", {"s": "https://saref.etsi.org/core/", "b": "https://saref.etsi.org/saref4bldg/"}]
+vendor = {"@context": ctx, "title": "acme-thermo-7", "b:isContained": {"@id": "urn:building:room1"},
+          "properties": {"temp": {"@type": "s:Temperature", "forms": [{"href": "t", "op": "readproperty"}]}}}
+hall = {**vendor, "title": "hall-thermo", "b:isContained": {"@id": "urn:building:hall"}}      # wrong room
+sim = {"@context": ctx, "title": "sim0", "properties": {"temperature": {"@type": "s:Temperature"}}}  # in no room
+fan = {"@context": ctx, "@type": ["b:Fan", "s:Actuator"], "title": "ceiling", "b:isContained": {"@id": "urn:building:room1"},
+       "actions": {"go": {"@type": "s:OnCommand"}, "stop": {"@type": "s:OffCommand"}}}
+appmod.get = lambda url: [sim, hall, fan, vendor]
+assert find("dir", "urn:building:room1", TEMPERATURE) is vendor
+assert typed(vendor, "properties", TEMPERATURE) == "temp"
+assert find("dir", "urn:building:room1", NEEDS["fan"]) is fan
+assert typed(fan, "actions", COMMAND["switchOff"]) == "stop"
+assert find("dir", "urn:building:hall", TEMPERATURE) is hall
+for missing in (lambda: find("dir", "urn:building:room1", NEEDS["plug"]), lambda: typed(fan, "properties", TEMPERATURE)):
+    try:
+        missing()
+        raise AssertionError("should not be found")
+    except LookupError:
+        pass
 
 assert [price(h) for h in (3, 12, 19, 23)] == [6.0, 8.0, 10.0, 6.0]
 

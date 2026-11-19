@@ -24,7 +24,8 @@ rooms the hardware pays for itself in under 8 months (`python3 eval/eval.py ener
 
 - Each device has a Thing Description (TD) with its native protocol forms (`tds/`).
 - The gateway consumes those TDs and re-exposes every Thing over HTTP with the same names.
-- The manager and the dashboards find Things by title in the Directory and only use URLs found in the TDs.
+- Each TD says what the device is and which room it is in, with ETSI SAREF terms. The manager and the dashboards
+  find Things by that meaning ("the temperature in room1"), never by title, and only use URLs found in the TDs.
 - Swapping the fan from CoAP to MQTT changes only which TD the gateway loads; nothing else changes.
 - The fan's TD can list both protocols (`tds/fan.json`). The gateway then picks one per request and fails over
   when it stops answering, so the manager never notices a protocol going down.
@@ -73,7 +74,7 @@ python3 app/app.py --speed 60 --start 8          # manager; 1 simulated hour per
 - **http://localhost:9000/**, the room dashboard:
   - The day's verdict as a sentence: money saved against a plain thermostat, and comfort compared too.
   - The cost race over the day, with price periods and numbered decisions.
-  - Each device by its Thing title, with what automation did and why, plus a switch and **Resume auto**.
+  - Each device, found by what it is and labelled with its Thing title, with what automation did and why, plus a switch and **Resume auto**.
   - Today's decisions on the simulated clock, gateway timing, the last 7 days, settings, and the Directory.
 - **http://localhost:9000/scale**: every sensor's live temperature, plus the gateway host's CPU, temperature and memory.
 - **Themes:** Auto (follows the system), Warm, Night, Ocean and Lilac, picked in the header and shared by both pages.
@@ -122,6 +123,31 @@ on the fan card and logs every switch. Demo: click **Drop CoAP** on the fan pane
 The MQTT side of the fan clears its retained status when it drops (and through its MQTT will when it
 dies), so the broker never answers for a dead device.
 
+## Semantic discovery
+
+The TDs are JSON-LD, so each one carries what the device is, from ETSI SAREF (core 3.2.1) and SAREF4BLDG (1.1.2):
+
+| Thing | Thing `@type` | Affordance `@type`s | Room |
+|-------|---------------|---------------------|------|
+| sensor | `saref:TemperatureSensor` | `temperature` → `saref:Temperature`, `humidity` → `saref:Humidity` | `s4bldg:isContained` `urn:building:room1` |
+| fan | `s4bldg:Fan`, `saref:Actuator` | `status` → `saref:OnOffState`, `switchOn/Off` → `saref:OnCommand/OffCommand` | same |
+| plug | `s4bldg:Outlet`, `saref:Switch`, `saref:Meter` | same as the fan, plus `power` → `saref:Power` | same |
+
+The manager asks the Directory for the Thing in its room (`--room`) that has a `saref:Temperature`, the one that is
+an `s4bldg:Fan` and the one that is an `s4bldg:Outlet`, then uses the property or action whose type it needs
+(the action that is a `saref:OnCommand`, not the one called `switchOn`). Prefixes are expanded with each TD's own
+`@context`, so a vendor writing `s:Temperature` with `s` mapped to SAREF matches too. The dashboard does the same.
+The gateway passes `@context`, `@type` and the room through to the TDs it exposes.
+
+**Rename test:** give the three TDs other titles (`acme-thermo-7`, `ceiling-fan`, `desk-socket`), other prefixes
+(`s:` / `b:`) and other property and action names (`temp`, `state`, `on`, `off`), then restart only the gateway.
+The manager carried on after one 2 s reconnect and switched the fan through the renamed `off`, including over MQTT
+during failover; the dashboard found all three. `app/test_app.py` checks the same matching, plus a sensor in another
+room and an unplaced simulated one.
+
+What stays a contract: the payload shapes (`{"on": …}`, the plug's `power`) and the sensor's `overheat` event name,
+which SAREF has no term for (the manager skips the overheat watcher if a sensor has no such event).
+
 ## Evaluation
 
 ```sh
@@ -143,6 +169,7 @@ Measured on one laptop (Level 1, 50 simulated sensors), November 2026. Pi number
 | Swap CoAP ↔ MQTT, control lost | 0–3 s (at most one 2 s round) |
 | Failover CoAP → MQTT (Drop CoAP), control lost | 3.0 s, one round; the request that hit the dead path took 1.0 s |
 | Fan status read through the gateway, CoAP vs MQTT form | 1.2 ms vs 42 ms (node-wot subscribes per MQTT read) |
+| Rename test: other titles, prefixes and affordance names, lines of manager/dashboard code changed | 0 |
 | Gateway CPU / RAM, N sensors read every 2 s | N=10: 1.0% / 172 MB, N=100: 2.9% / 193 MB |
 
 The replay uses a simple one-room thermal model, and the tariff, wattages and hardware prices are
@@ -151,8 +178,8 @@ example values, so treat the energy numbers as modelled, not measured.
 ## Tests
 
 ```sh
-cd gateway && npm test                 # Directory API
-python3 app/test_app.py                # rules, tariff, overrides, faults, settings validation, replay
+cd gateway && npm test                 # failover choice, Directory API
+python3 app/test_app.py                # rules, tariff, overrides, faults, settings validation, replay, semantic discovery
 python3 devices/test_devices.py        # CoAP relay + plug
 ```
 
@@ -165,6 +192,10 @@ python3 devices/test_devices.py        # CoAP relay + plug
 - An MQTT command is fire-and-forget: if the fan dies between two probes (2 s), a command sent over MQTT in
   that window is lost. CoAP commands are acknowledged.
 - Failover is wired for the fan only. Level 3 runs `fan-coap.json`, since the ESP8266 fan speaks CoAP only.
+- Semantic matching expands compact prefixes from each TD's `@context`; it doesn't fetch remote JSON-LD contexts or
+  reason over subclasses (a `saref:TemperatureSensor` is not inferred to be a `saref:Sensor`). The scale view still
+  finds sensors by the property name `temperature`.
+- The manager's own Thing `room1-energy` is found by title: it is the dashboard's backend, not a device.
 
 ## Safety
 
