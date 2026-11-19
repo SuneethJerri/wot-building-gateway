@@ -38,7 +38,7 @@ echo "[netconf] laptop=$LAPTOP_IP  broker=$BROKER  fan=$FAN_HOST  plug=$PLUG_HOS
 
 # 1) regenerate the room TDs with the current hosts
 python3 tds/gen.py --broker "$BROKER" --coap "$FAN_HOST" --plug "$PLUG_HOST"
-echo "[netconf] TDs regenerated: tds/{sensor,fan-coap,fan-mqtt,plug}.json"
+echo "[netconf] TDs regenerated: tds/{sensor,fan,fan-coap,fan-mqtt,plug}.json"
 
 # 2) patch the sensor firmware's broker so a reflash points at the right MQTT host
 SEC="firmware/sensor-mqtt/include/secrets.h"

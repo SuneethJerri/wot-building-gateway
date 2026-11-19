@@ -159,6 +159,18 @@ Notes / gotchas baked into `scale.sh`:
 - [ ] decide where the broker lives (laptop vs install on Pi)
 - [ ] wiring: DHT11→GPIO4, SRD-05VDC relay→GPIO17, LED as the "fan"
 
+### Protocol failover (fan over CoAP + MQTT)
+- `./lab.sh level1` / `level2` run it by default: the fan serves both protocols
+  (`coap_relay.py --mqtt <broker>`) and the gateway loads `tds/fan.json`, CoAP preferred.
+- **Show it:** fan panel `:8092` → **Drop CoAP**. The dashboard fan card turns "via MQTT · CoAP down"
+  and the feed logs the switch; the fan keeps obeying. **Restore CoAP** → back on CoAP within ~2 s.
+- Manual Pi-gateway setup (Level 1 above): start the fan with `coap_relay.py --mock --mqtt <laptop-ip>`
+  and point `~/start_gateway.sh` at `fan.json` instead of `fan-coap.json`.
+- **Turn it off** if the fan card keeps flipping CoAP ↔ MQTT on a flaky hotspot (each switch costs one
+  1 s request): `FAN_TD=fan-coap.json ./lab.sh level1` (or `level2`). The gateway then talks CoAP only,
+  as before; the fan's MQTT side keeps running but nothing uses it.
+- Level 3 never uses it: it loads `fan-coap.json`, since the ESP8266 fan speaks CoAP only.
+
 ### Level 3 — Distributed ESP32 (one protocol per board)
 - [ ] MQTT=sensor, CoAP=fan, HTTP=plug ESP32 firmware
 - [ ] ESP32s on 2.4 GHz hotspot; TDs point at each board's IP
@@ -172,3 +184,5 @@ Notes / gotchas baked into `scale.sh`:
 4. Confirm/refresh IPs in TDs if DHCP moved anything; re-run `gen.py` if so.
 5. Start the level's services bottom-up (broker → devices → gateway → app → GUI).
 6. Have the fallback level ready (if L3 flakes, fall to L2; if L2, fall to L1).
+7. Watch the fan card for a minute. If it flips CoAP ↔ MQTT without anyone pressing Drop, restart the
+   level with `FAN_TD=fan-coap.json` (see "Protocol failover").

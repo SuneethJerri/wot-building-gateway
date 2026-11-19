@@ -20,18 +20,22 @@ def sensor_td(title, broker, topic, port=1883):
                                     "forms": [{"href": f"{base}/overheat", "op": "subscribeevent"}]}}}
 
 
-def relay_td(title, kind, host):
+def relay_td(title, kinds, coap_host, broker):
+    """One form per protocol in kinds, in that order: the gateway prefers the first and fails over."""
     on = {"type": "object", "properties": {"on": {"type": "boolean"}}}
-    if kind == "coap":
-        b = f"coap://{host}:5683"
-        st = [{"href": f"{b}/status", "op": "readproperty", "contentType": "application/json"}]
-        act = lambda p: [{"href": f"{b}/{p}", "op": "invokeaction", "cov:method": "PUT"}]
-        on_f, off_f = act("on"), act("off")
-    else:
-        b = f"mqtt://{host}:1883/building/room1/fan"
-        st = [{"href": f"{b}/status", "op": ["readproperty", "observeproperty"]}]
-        on_f = off_f = [{"href": f"{b}/cmd", "op": "invokeaction"}]
-    return {"@context": CTX, "id": f"urn:dev:{title}-{kind}", "title": title,
+    st, on_f, off_f = [], [], []
+    for kind in kinds:
+        if kind == "coap":
+            b = f"coap://{coap_host}:5683"
+            st.append({"href": f"{b}/status", "op": "readproperty", "contentType": "application/json"})
+            on_f.append({"href": f"{b}/on", "op": "invokeaction", "cov:method": "PUT"})
+            off_f.append({"href": f"{b}/off", "op": "invokeaction", "cov:method": "PUT"})
+        else:
+            b = f"mqtt://{broker}:1883/building/room1/fan"
+            st.append({"href": f"{b}/status", "op": ["readproperty", "observeproperty"]})
+            on_f.append({"href": f"{b}/cmd", "op": "invokeaction"})
+            off_f.append({"href": f"{b}/cmd", "op": "invokeaction"})
+    return {"@context": CTX, "id": f"urn:dev:{title}-{'-'.join(kinds)}", "title": title,
             "securityDefinitions": {"nosec": {"scheme": "nosec"}}, "security": "nosec",
             "properties": {"status": {**on, "readOnly": True, "forms": st}},
             "actions": {"switchOn": {"forms": on_f}, "switchOff": {"forms": off_f}}}
@@ -61,6 +65,7 @@ if __name__ == "__main__":
     a = a.parse_args()
     d = pathlib.Path(__file__).parent
     write(d / "sensor.json", sensor_td("room1-sensor", a.broker, "building/room1"))
-    write(d / "fan-coap.json", relay_td("room1-fan", "coap", a.coap))
-    write(d / "fan-mqtt.json", relay_td("room1-fan", "mqtt", a.broker))
+    write(d / "fan-coap.json", relay_td("room1-fan", ["coap"], a.coap, a.broker))
+    write(d / "fan-mqtt.json", relay_td("room1-fan", ["mqtt"], a.coap, a.broker))
+    write(d / "fan.json", relay_td("room1-fan", ["coap", "mqtt"], a.coap, a.broker))  # failover
     write(d / "plug.json", plug_td("room1-plug", a.plug))

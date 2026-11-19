@@ -10,7 +10,7 @@
 #
 # Addresses are DHCP; this script auto-detects the laptop IP and (for level3)
 # calls ./netconf.sh to refresh every TD/firmware address first.
-# Env overrides: LAPTOP_IP, BROKER, FAN_HOST, PLUG_HOST, HI, LO,
+# Env overrides: LAPTOP_IP, BROKER, FAN_HOST, PLUG_HOST, HI, LO, FAN_TD (gateway's fan TD, default fan.json),
 #   SPEED (app clock, default 60 = 1 h per minute), START (clock start hour, default 8),
 #   SIM (level1: also run N simulated MQTT sensors, e.g. SIM=50; shown on /scale)
 set -uo pipefail
@@ -33,8 +33,9 @@ ensure_broker(){
 }
 
 start_gateway(){ # extra TD/dir args beyond the three rooms are passed through
+  # fan.json = CoAP + MQTT forms, the gateway fails over between them; FAN_TD=fan-coap.json for one protocol
   start gateway env -C gateway node gateway.js --host "$LAPTOP_IP" \
-      ../tds/sensor.json ../tds/fan-coap.json ../tds/plug.json "$@"
+      ../tds/sensor.json "../tds/${FAN_TD:-fan.json}" ../tds/plug.json "$@"
 }
 start_app(){ start app "$PY" app/app.py --hi "$HI" --lo "$LO" --host "$LAPTOP_IP" --speed "${SPEED:-60}" --start "${START:-8}"; }
 
@@ -58,7 +59,7 @@ case "${1:-}" in
     # the mock room cools while the fan runs (status read through the gateway, so the swap test still works)
     start sensor     "$PY" devices/sensor.py     --mock --broker "$LAPTOP_IP" --gui 8090 \
         --fan-status "http://$LAPTOP_IP:8080/room1-fan/properties/status"
-    start coap_relay "$PY" devices/coap_relay.py --mock --gui 8092
+    start coap_relay "$PY" devices/coap_relay.py --mock --gui 8092 --mqtt "$LAPTOP_IP"   # CoAP + MQTT fan
     start http_plug  "$PY" devices/http_plug.py          --gui 8091
     if [ "${SIM:-0}" -gt 0 ]; then
       start sim "$PY" devices/sim/sim.py "$SIM" --broker "$LAPTOP_IP"; sleep 3; start_gateway ../tds/sim
@@ -74,7 +75,7 @@ case "${1:-}" in
     python3 tds/gen.py --broker "$LAPTOP_IP" --coap "$LAPTOP_IP" --plug "$LAPTOP_IP"
     ensure_broker
     start sensor     "$PY" devices/sensor.py     --broker "$LAPTOP_IP" --pin 4
-    start coap_relay "$PY" devices/coap_relay.py --pin 17
+    start coap_relay "$PY" devices/coap_relay.py --pin 17 --mqtt "$LAPTOP_IP"
     start http_plug  "$PY" devices/http_plug.py
     sleep 2; start_gateway; sleep 6; start_app
     log "dashboard: http://$LAPTOP_IP:9000/" ;;
@@ -84,7 +85,7 @@ case "${1:-}" in
     stop_devices; stop_infra; sleep 1
     ./netconf.sh                      # refresh TD/firmware addresses for the current network
     ensure_broker
-    sleep 1; start_gateway; sleep 6; start_app
+    sleep 1; FAN_TD=fan-coap.json start_gateway; sleep 6; start_app   # the ESP8266 fan speaks CoAP only
     log "now POWER the 3 chips (sensor=ESP32, fan=ESP8266/CoAP, plug=ESP8266/HTTP)."
     log "dashboard: http://$LAPTOP_IP:9000/   (check they appear; see firmware/health-check/chip-registry.md)" ;;
 

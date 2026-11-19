@@ -26,6 +26,8 @@ rooms the hardware pays for itself in under 8 months (`python3 eval/eval.py ener
 - The gateway consumes those TDs and re-exposes every Thing over HTTP with the same names.
 - The manager and the dashboards find Things by title in the Directory and only use URLs found in the TDs.
 - Swapping the fan from CoAP to MQTT changes only which TD the gateway loads; nothing else changes.
+- The fan's TD can list both protocols (`tds/fan.json`). The gateway then picks one per request and fails over
+  when it stops answering, so the manager never notices a protocol going down.
 
 ## Repository layout
 
@@ -60,7 +62,7 @@ Or by hand:
 mosquitto -c devices/mosquitto.conf &            # broker on :1883
 python3 tds/gen.py                               # TDs pointing at localhost
 python3 devices/sensor.py --mock --gui 8090 --fan-status http://localhost:8080/room1-fan/properties/status &
-python3 devices/coap_relay.py --mock --gui 8092 &
+python3 devices/coap_relay.py --mock --gui 8092 --mqtt localhost &   # fan over CoAP and MQTT
 python3 devices/http_plug.py --gui 8091 &
 (cd gateway && node gateway.js)                  # gateway :8080, Directory + dashboards :9000
 python3 app/app.py --speed 60 --start 8          # manager; 1 simulated hour per minute
@@ -76,6 +78,7 @@ python3 app/app.py --speed 60 --start 8          # manager; 1 simulated hour per
 - **http://localhost:9000/scale**: every sensor's live temperature, plus the gateway host's CPU, temperature and memory.
 - **Themes:** Auto (follows the system), Warm, Night, Ocean and Lilac, picked in the header and shared by both pages.
 - **Device panels** on `:8090`–`:8092`. The sensor panel has demo triggers: Heat/Cool nudge, and Open/close window, which makes the fan-fault alert fire.
+  The fan panel has Drop/Restore CoAP and MQTT, which cut one protocol path while the fan keeps running.
 
 ## Demo levels
 
@@ -103,6 +106,22 @@ node gateway.js ../tds/sensor.json ../tds/fan-mqtt.json ../tds/plug.json   # MQT
 
 The manager and dashboards keep working unchanged. `eval.py control` measures how long control is lost.
 
+## Protocol failover
+
+`tds/fan.json` gives the fan both a CoAP and an MQTT form for every interaction, which a TD allows and
+leaves to the consumer to choose. The gateway (the consumer) chooses:
+
+- it uses the TD's first protocol, CoAP, and probes every protocol on `status` every 2 s;
+- a protocol that doesn't answer within 1 s is down, and the same request is retried on the next one;
+- it moves to a working protocol for speed only when that one is more than 2× faster (+5 ms) over the
+  smoothed latency, so it doesn't flip on LAN noise. After a failover it goes back to CoAP that way.
+
+The choice is itself readable: the gateway adds a `protocol` property to `room1-fan`
+(`{"active": "coap", "health": {...}, "switched": {...}}`). The dashboard shows "via CoAP · MQTT standby"
+on the fan card and logs every switch. Demo: click **Drop CoAP** on the fan panel (`:8092`).
+The MQTT side of the fan clears its retained status when it drops (and through its MQTT will when it
+dies), so the broker never answers for a dead device.
+
 ## Evaluation
 
 ```sh
@@ -122,6 +141,8 @@ Measured on one laptop (Level 1, 50 simulated sensors), November 2026. Pi number
 | Gateway overhead per request (median, direct → gateway) | plug read 0.44 → 0.79 ms, CoAP read 0.42 → 0.58 ms, CoAP action 0.34 → 0.52 ms |
 | Control loop (3 reads plus actions through the gateway) | median 4 ms, p95 45 ms |
 | Swap CoAP ↔ MQTT, control lost | 0–3 s (at most one 2 s round) |
+| Failover CoAP → MQTT (Drop CoAP), control lost | 3.0 s, one round; the request that hit the dead path took 1.0 s |
+| Fan status read through the gateway, CoAP vs MQTT form | 1.2 ms vs 42 ms (node-wot subscribes per MQTT read) |
 | Gateway CPU / RAM, N sensors read every 2 s | N=10: 1.0% / 172 MB, N=100: 2.9% / 193 MB |
 
 The replay uses a simple one-room thermal model, and the tariff, wattages and hardware prices are
@@ -141,6 +162,9 @@ python3 devices/test_devices.py        # CoAP relay + plug
 - The Directory is in-memory, so the gateway and the manager register again after every start.
 - node-wot can exit on an internal event-listener error ("Form not found"); restart the gateway if it does.
 - Only tested with mock devices on one machine so far.
+- An MQTT command is fire-and-forget: if the fan dies between two probes (2 s), a command sent over MQTT in
+  that window is lost. CoAP commands are acknowledged.
+- Failover is wired for the fan only. Level 3 runs `fan-coap.json`, since the ESP8266 fan speaks CoAP only.
 
 ## Safety
 

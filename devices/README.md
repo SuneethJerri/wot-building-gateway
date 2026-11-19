@@ -8,7 +8,7 @@ Python 3. Install once:
 ## What's here
 
 - `coap_relay.py` - fan relay over CoAP (`/status`, `/on`, `/off`)
-- `mqtt_relay.py` - same relay over MQTT topics
+- `mqtt_relay.py` - same relay over MQTT topics (`coap_relay.py --mqtt BROKER` runs both at once)
 - `http_plug.py` - fake smart plug (`/status`, `/on`, `/off`)
 - `common.py` - the GPIO relay class both relays use
 - `sim/` - 10-100 device simulator
@@ -31,7 +31,7 @@ runs in a background thread; `gui.py` is the shared helper). This mirrors the Le
 where each ESP32 hosts its own page.
 
     python3 sensor.py --mock --gui 8090      # temp/humidity + sparkline; Heat/Cool nudge buttons
-    python3 coap_relay.py --mock --gui 8092   # fan on/off status + switch buttons
+    python3 coap_relay.py --mock --gui 8092 --mqtt localhost   # fan over CoAP + MQTT; switch, Drop/Restore each protocol
     python3 http_plug.py --gui 8091           # plug on/off + power + switch buttons (native HTTP stays :8081)
 
 Open `http://<host>:<gui-port>/`. The sensor's **nudge** buttons add/subtract a manual
@@ -44,7 +44,9 @@ the room cools up to 6 °C below the swing. The **Open/close window** button sto
 which triggers the energy manager's "fan fault or window open" alert. `lab.sh level1` sets it.
 
 `run.sh coap` kills a running mqtt relay and the other way round, that's the swap
-for the interoperability test. On the Pi without `--mock` the relay uses GPIO 17
+for the interoperability test. For the gateway's failover (`tds/fan.json`) run one relay with
+both: `coap_relay.py --mqtt BROKER`. Its panel's **Drop CoAP** stops the CoAP server and **Drop MQTT**
+unsubscribes and clears the retained status, so that path stops answering while the other keeps working. On the Pi without `--mock` the relay uses GPIO 17
 (`--pin` to change it).
 
 ## Trying them by hand

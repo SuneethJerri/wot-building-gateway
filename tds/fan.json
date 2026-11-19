@@ -1,0 +1,64 @@
+{
+  "@context": "https://www.w3.org/2022/wot/td/v1.1",
+  "id": "urn:dev:room1-fan-coap-mqtt",
+  "title": "room1-fan",
+  "securityDefinitions": {
+    "nosec": {
+      "scheme": "nosec"
+    }
+  },
+  "security": "nosec",
+  "properties": {
+    "status": {
+      "type": "object",
+      "properties": {
+        "on": {
+          "type": "boolean"
+        }
+      },
+      "readOnly": true,
+      "forms": [
+        {
+          "href": "coap://localhost:5683/status",
+          "op": "readproperty",
+          "contentType": "application/json"
+        },
+        {
+          "href": "mqtt://localhost:1883/building/room1/fan/status",
+          "op": [
+            "readproperty",
+            "observeproperty"
+          ]
+        }
+      ]
+    }
+  },
+  "actions": {
+    "switchOn": {
+      "forms": [
+        {
+          "href": "coap://localhost:5683/on",
+          "op": "invokeaction",
+          "cov:method": "PUT"
+        },
+        {
+          "href": "mqtt://localhost:1883/building/room1/fan/cmd",
+          "op": "invokeaction"
+        }
+      ]
+    },
+    "switchOff": {
+      "forms": [
+        {
+          "href": "coap://localhost:5683/off",
+          "op": "invokeaction",
+          "cov:method": "PUT"
+        },
+        {
+          "href": "mqtt://localhost:1883/building/room1/fan/cmd",
+          "op": "invokeaction"
+        }
+      ]
+    }
+  }
+}

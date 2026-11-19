@@ -54,6 +54,7 @@
   .chip { font-size:13px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--ground); color:var(--mute); }
   .chip[data-tone="warn"] { background:var(--amber-bg); color:var(--amber-ink); }
   .chip[data-tone="bad"] { background:var(--red-bg); color:var(--red); }
+  .via { font-size:13px; color:var(--mute); }
   .chip[data-tone="good"] { background:var(--good-bg); color:var(--teal-ink); }
   .dev h3 { font-size:clamp(18px, .4vw + 15px, 22px); font-weight:700; margin:6px 0 1px; letter-spacing:-.01em; text-wrap:balance; }
   .why { font-size:14px; color:var(--mute); margin:0; text-wrap:pretty; }
@@ -184,7 +185,7 @@
       </div>
       <article class="card dev" id="dev-fan">
         <div>
-          <div class="dev-top"><code class="tt">room1-fan</code><span class="chip" data-role="chip">–</span></div>
+          <div class="dev-top"><code class="tt">room1-fan</code><span class="chip" data-role="chip">–</span><span class="via" data-role="via" hidden></span></div>
           <h3 data-role="say">Looking for the fan.</h3>
           <p class="why" data-role="why"></p>
           <p class="err" data-role="err" role="alert" hidden></p>
@@ -265,7 +266,7 @@
 // no device addresses or protocols here, only Thing titles and the forms their TDs carry.
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-let things = {}, summary = null, overheats = [], watching = "", settingsDirty = false;
+let things = {}, summary = null, localEvents = [], lastSwitch = null, watching = "", settingsDirty = false;
 
 const href = (td, kind, name, op) => (td?.[kind]?.[name]?.forms || []).find((f) => [].concat(f.op).includes(op))?.href;
 async function j(url, opt) {
@@ -335,6 +336,22 @@ function setDevice(id, { chip, tone, say, why, on, disabled, resume }) {
   const sw = card.querySelector(".switch");
   if (sw && sw.getAttribute("aria-busy") !== "true") { sw.setAttribute("aria-checked", String(!!on)); sw.disabled = !!disabled; }
   const r = card.querySelector('[data-role="resume"]'); if (r) r.hidden = !resume;
+}
+
+const PROTO = { coap: "CoAP", mqtt: "MQTT", http: "HTTP" }, proto = (p) => PROTO[p] || p;
+function renderLink(l) {
+  const via = $("dev-fan").querySelector('[data-role="via"]');
+  via.hidden = !l;
+  if (!l) return;
+  const others = Object.keys(l.health).filter((p) => p !== l.active).map((p) => `${proto(p)} ${l.health[p].ok ? "standby" : "down"}`);
+  via.textContent = [`via ${proto(l.active)}`, ...others].join(" · ");
+  const sw = l.switched;
+  if (sw && lastSwitch !== null && sw.at !== lastSwitch) {
+    const why = sw.reason === "down" ? `${proto(sw.from)} stopped answering` : `${proto(sw.to)} was clearly faster`;
+    localEvents.push({ t: summary?.clock || "--:--", h: summary?.h ?? 0, kind: "gateway", text: `The gateway moved room1-fan from ${proto(sw.from)} to ${proto(sw.to)}: ${why}.` });
+    localEvents = localEvents.slice(-10);
+  }
+  lastSwitch = sw?.at ?? 0;
 }
 
 function renderDevices(t, h, f, p, s) {
@@ -537,7 +554,7 @@ $("chart").addEventListener("pointermove", (ev) => { const r = $("chart").getBou
 $("chart").addEventListener("pointerleave", () => { hoverX = null; document.getElementById("hov")?.setAttribute("visibility", "hidden"); $("tip").hidden = true; });
 
 function renderEvents(s) {
-  const evs = [...(s?.events || []), ...overheats].sort((a, b) => a.h - b.h);
+  const evs = [...(s?.events || []), ...localEvents].sort((a, b) => a.h - b.h);
   const shown = evs.slice(-8).reverse();
   $("ev-empty").hidden = shown.length > 0;
   const notable = ["fault", "overheat", "manual", "shed", "gateway", "schedule", "open", "resume"];
@@ -638,13 +655,16 @@ async function poll() {
     j(href(things["room1-plug"], "properties", "status", "readproperty")),
     j(href(things["room1-energy"], "properties", "summary", "readproperty")),
   ]);
+  // only multi-protocol Things have it: which protocol the gateway uses for the fan (failover)
+  const linkHref = href(things["room1-fan"], "properties", "protocol", "readproperty");
+  const link = linkHref ? await j(linkHref).catch(() => null) : null;
   summary = e.status === "fulfilled" ? e.value : null;
   const ok = [t, f, p].some((x) => x.status === "fulfilled");
   $("live").dataset.state = ok ? "live" : "down";
   $("conn").textContent = ok ? "Live" : "Devices unreachable";
   $("banner").hidden = ok;
   $("clock").innerHTML = summary ? `<b>${summary.clock}</b> IST${summary.speed > 1 ? ` · simulated ×${summary.speed}` : ""}` : "";
-  renderVerdict(summary); renderDevices(t, h, f, p, summary); renderEvents(summary); renderGateway(summary); renderDays(summary);
+  renderLink(link); renderVerdict(summary); renderDevices(t, h, f, p, summary); renderEvents(summary); renderGateway(summary); renderDays(summary);
   if (summary) fillSettings(summary.settings);
   if (!ok) things = {};
   watch();
@@ -657,8 +677,8 @@ async function watch() { // HTTP long-poll: one GET blocks until the next overhe
   while (watching === link) {
     try {
       const v = await j(link);
-      overheats.push({ t: summary?.clock || "--:--", h: summary?.h ?? 0, kind: "overheat", text: `The room hit ${v} °C, over the 35 °C alarm.` });
-      overheats = overheats.slice(-10); renderEvents(summary);
+      localEvents.push({ t: summary?.clock || "--:--", h: summary?.h ?? 0, kind: "overheat", text: `The room hit ${v} °C, over the 35 °C alarm.` });
+      localEvents = localEvents.slice(-10); renderEvents(summary);
     } catch (err) { await new Promise((r) => setTimeout(r, 5000)); }
   }
 }

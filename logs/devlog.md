@@ -236,3 +236,30 @@ Legend: ✅ done · 🔧 in progress · ⚠️ issue · ↪ design change
 - Simulated sensors now stay between 18 and 32 °C (the random walk drifted to 8.7 °C over hours).
 - Repo renamed `wot-building-gateway` → `wot-energy-gateway`; CLAUDE.md removed; its demo levels,
   hardware map and network notes moved into the README.
+
+---
+
+## 2026-11-19 — Protocol failover in the gateway
+
+- ↪ Professor suggested the gateway choose the devices' protocol by latency. Choosing purely by
+  latency is noise on a LAN (CoAP and MQTT reads differ by ~40 ms here, sub-ms on direct access), so
+  it's built as failover first: a TD may list several forms per interaction and leaves the choice to
+  the consumer, and the gateway is the consumer.
+- `tds/fan.json`: CoAP + MQTT forms for `status`, `switchOn`, `switchOff` (CoAP first = preferred).
+  `fan-coap.json` / `fan-mqtt.json` unchanged; Level 3 keeps `fan-coap.json` (ESP8266 is CoAP only).
+- Gateway: probes each protocol on `status` every 2 s, 1 s timeout = down, a failed request is retried
+  on the next protocol, latency switching only after 5 samples and only if > 2× faster (+5 ms).
+  Readable as the extra `protocol` property of `room1-fan`; dashboard shows "via CoAP · MQTT standby"
+  and logs switches.
+- Fan device: `coap_relay.py --mqtt BROKER` serves both from one process. Panel buttons Drop/Restore
+  CoAP (stops the CoAP server) and MQTT (unsubscribes, clears the retained status). MQTT will clears
+  the retained status if the device dies, so the broker never answers for a dead fan.
+- ⚠️ Found and fixed: node-wot ignores a second subscriber to the same MQTT topic, so two concurrent
+  reads of an MQTT property (app + dashboard) left one hanging forever. Affected the sensor too.
+  The gateway now shares one in-flight read per MQTT form.
+- ⚠️ First version flapped at startup (cold-start probes include connection setup); fixed with the
+  5-sample warm-up.
+- ✅ Level 1 on the laptop: Drop CoAP → `switchOn` through the gateway still reached the fan over MQTT
+  (1.0 s), app lost control once for 3.0 s, back to CoAP within one probe after Restore. Drop MQTT
+  while on CoAP: no switch. Both down: reads fail with 500 in 2 s, gateway stays up; recovery from
+  either side works. Fan status read: CoAP 1.2 ms vs MQTT 42 ms through the gateway.
